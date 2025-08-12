@@ -367,13 +367,13 @@ addForm.addEventListener('submit', async e=>{
   toast('Saved');
 
   // OPTIONAL: send to your Apps Script endpoint. Replace EXEC_URL below with your /exec link.
-  const EXEC_URL = 'https://script.google.com/macros/s/REPLACE_WITH_YOUR_EXEC_ID/exec'; // <-- TODO
+  const EXEC_URL = 'https://script.google.com/macros/s/AKfycbya8ZjUh1fAnm27LlnYQFAFriURxYdImgGgtreLtFv_M79HdHycfN8kabRjtJ839pZyug/exec'; // <-- TODO
   if (!EXEC_URL.includes('REPLACE_WITH_YOUR_EXEC_ID')) {
     try {
       const res = await fetch(EXEC_URL, {
         method:'POST',
         headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body:new URLSearchParams({date:row.date,store:row.store,category:row.category,item:row.item,price:String(row.price),qty:String(row.qty),notes:row.notes||''})
+        body:new URLSearchParams({token:'MY_SECRET_TOKEN_123',date:row.date,store:row.store,category:row.category,item:row.item,price:String(row.price),qty:String(row.qty),notes:row.notes||''})
       });
       console.log('Posted to Apps Script:', res.status);
     } catch(e){ console.warn('Post failed:', e); }

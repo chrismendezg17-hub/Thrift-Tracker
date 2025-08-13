@@ -69,6 +69,19 @@
     <!-- DASHBOARD -->
     <section id="tab-dash" class="tab active">
       <div class="card">
+        <!-- Shared Route (auto-detected from ?route=...) -->
+<div class="card" id="routeCard" style="display:none">
+  <h2 id="routeTitle">Route</h2>
+
+  <div class="actions" style="margin:10px 0">
+    <a id="openGoogle" class="btn" target="_blank" rel="noopener">Open in Google Maps</a>
+    <a id="openApple"  class="btn" target="_blank" rel="noopener">Open in Apple Maps</a>
+  </div>
+
+  <ol class="list" id="routeStops"></ol>
+  <div class="empty" id="routeEmpty" style="display:none">Route loaded. Use the buttons above to open in Maps.</div>
+</div>
+
         <h2>Today</h2>
         <div class="kpis">
           <div class="kpi"><strong id="kpiItems">0</strong><span>Items</span></div>
@@ -392,6 +405,103 @@ $('#quickAddBtn').addEventListener('click', ()=>{
 });
 
 if (searchInput) searchInput.addEventListener('input', refreshUI);
+  // ===== Shared Route support =====
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]))}
+function b64urlToString(s){
+  // tolerate URL-safe base64 and missing padding
+  s = (s||'').replace(/-/g,'+').replace(/_/g,'/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  try { return new TextDecoder().decode(Uint8Array.from(bin, c=>c.charCodeAt(0))); }
+  catch { return decodeURIComponent(Array.prototype.map.call(bin, c => '%'+c.charCodeAt(0).toString(16).padStart(2,'0')).join('')); }
+}
+function asAddress(x){ 
+  if (typeof x === 'string') return x;
+  if (!x || typeof x !== 'object') return '';
+  if (x.address) return x.address;
+  if (x.name) return x.name;
+  if (x.lat != null && x.lng != null) return `${x.lat},${x.lng}`;
+  return '';
+}
+function buildGoogleMapsUrl(stops){
+  const clean = stops.map(asAddress).filter(Boolean);
+  if (!clean.length) return 'https://maps.google.com';
+  if (clean.length === 1) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clean[0])}`;
+  const origin = clean[0], dest = clean[clean.length-1];
+  const way   = clean.slice(1,-1).join('|');
+  const u = new URL('https://www.google.com/maps/dir/');
+  u.searchParams.set('api','1');
+  u.searchParams.set('origin', origin);
+  u.searchParams.set('destination', dest);
+  if (way) u.searchParams.set('waypoints', way);
+  return u.toString();
+}
+function buildAppleMapsUrl(stops){
+  const clean = stops.map(asAddress).filter(Boolean);
+  if (!clean.length) return 'https://maps.apple.com/';
+  if (clean.length === 1) return `https://maps.apple.com/?q=${encodeURIComponent(clean[0])}`;
+  // Apple Maps multi-waypoint is limited; open origin → destination.
+  const u = new URL('https://maps.apple.com/');
+  u.searchParams.set('saddr', clean[0]);
+  u.searchParams.set('daddr', clean[clean.length-1]);
+  return u.toString();
+}
+function parseRouteFromUrl(){
+  const sp   = new URLSearchParams(location.search);
+  let name   = (sp.get('name') || '').trim();
+  let encoded = sp.get('route') || sp.get('stops') || '';
+  let g = sp.get('g') || sp.get('google') || '';
+  let stops = [];
+  if (encoded) {
+    try {
+      const decoded = b64urlToString(encoded);
+      const j = JSON.parse(decoded);
+      if (Array.isArray(j)) stops = j;
+      else if (j && Array.isArray(j.stops)) { stops = j.stops; if (!name && j.name) name = j.name; if (!g && j.google) g = j.google; }
+      // also allow plain pipe-separated string as fallback
+      if (!stops.length && typeof decoded === 'string') stops = decoded.split('|').map(s=>s.trim()).filter(Boolean);
+    } catch {
+      // treat as pipe-separated list (fallback)
+      stops = encoded.split('|').map(s=>s.trim()).filter(Boolean);
+    }
+  }
+  if (!stops.length && !g) return null;
+  const google = g || buildGoogleMapsUrl(stops);
+  const apple  = buildAppleMapsUrl(stops);
+  return { name: name || 'Shared Route', stops, google, apple };
+}
+function renderRouteCard(route){
+  if (!route) return;
+  $('#routeTitle').textContent = route.name;
+  $('#openGoogle').href = route.google;
+  $('#openApple').href  = route.apple;
+
+  const hasStops = route.stops && route.stops.length;
+  if (hasStops){
+    $('#routeStops').innerHTML = route.stops.map((s,i)=>{
+      const label = escapeHtml(asAddress(s));
+      return `<li class="list-item"><div><strong>${i+1}. ${label}</strong></div></li>`;
+    }).join('');
+    $('#routeEmpty').style.display = 'none';
+  } else {
+    $('#routeStops').innerHTML = '';
+    $('#routeEmpty').style.display = 'block';
+  }
+
+  // show card + jump to Home tab
+  $('#routeCard').style.display = 'block';
+  $$('.tab-btn').forEach(x=>x.classList.remove('active'));
+  $$('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelector('[data-tab="tab-dash"]').classList.add('active');
+  $('#tab-dash').classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+// Detect + render on load
+(function(){
+  const r = parseRouteFromUrl();
+  if (r) renderRouteCard(r);
+})();
+
 
 // Register service worker for installability/offline
 if ('serviceWorker' in navigator) {

@@ -1,5 +1,5 @@
 // Thrift Tracker — Service Worker (GitHub Pages–safe, relative paths)
-const VERSION = 'tt-v2-2025-08-13';
+const VERSION = 'tt-v3-2025-08-13'; // bumped from v2 so updates are pulled
 
 // Precache these files relative to where the SW is served (project root)
 const APP_SHELL = [
@@ -7,7 +7,7 @@ const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-256.png',          // optional, since you have it
+  './icon-256.png',
   './icon-512.png'
 ];
 
@@ -42,16 +42,4 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
 
       return fetch(req).then((res) => {
-        // Put a copy in cache for next time
-        const copy = res.clone();
-        caches.open(VERSION).then((cache) => cache.put(req, copy)).catch(() => {});
-        return res;
-      }).catch(() => cached); // if network fails, fall back to whatever we had
-    })
-  );
-});
-
-// Optional: allow pages to trigger immediate takeover
-self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') self.skipWaiting();
-});
+        // Put a copy in cache fo

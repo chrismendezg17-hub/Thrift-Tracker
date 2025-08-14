@@ -1,15 +1,17 @@
-
 {
   "name": "Thrift Tracker",
-  "short_name": "Tracker",
-  "description": "Quick mobile tracker for thrift finds.",
+  "short_name": "ThriftTracker",
+  "description": "Log thrift finds, supplies, and quick links while sourcing.",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0b0f14",
   "theme_color": "#0b0f14",
+  "orientation": "portrait-primary",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any maskable" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ]
+  ],
+  "categories": ["productivity", "utilities"]
 }

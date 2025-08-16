@@ -10,84 +10,51 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Scale Flipz">
 
-<!-- PWA links (works with your manifest.webmanifest, sw.js, and icons in repo root) -->
+<!-- PWA links -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 
-<!-- Chart.js (no custom colors/styles set) -->
+<!-- Chart.js (CDN) -->
 <script src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <style>
   :root{
     --bg:#0b0f14; --surface:#0f1622; --card:#111924; --line:#1f2a3a;
     --ink:#dbe7ff; --muted:#8aa0c7; --accent:#5bbcff;
-    --good:#34d399; --warn:#fbbf24; --bad:#ef4444;
-    --radius:14px;
+    --good:#34d399; --warn:#fbbf24; --bad:#ef4444; --radius:14px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{
-    margin:0; color:var(--ink);
-    background:linear-gradient(180deg,#071019,#0b0f14 30%,#0b0f14);
-    font:15px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
-  }
-  header{
-    position:sticky; top:0; z-index:5;
-    padding:14px 16px; display:flex; align-items:center; justify-content:space-between;
-    background:#0b0f14cc; border-bottom:1px solid var(--line);
-    backdrop-filter:saturate(180%) blur(10px);
-  }
-  h1{margin:0; font-size:18px; letter-spacing:.3px}
-  .wrap{max-width:1000px; margin:0 auto; padding:16px; padding-bottom:100px} /* bottom nav space */
-  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin:12px 0}
-  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px}
-  .row{display:flex; gap:12px; flex-wrap:wrap}
-  .row>*{flex:1 1 240px}
-  .pill{display:inline-block; padding:3px 8px; border-radius:999px; background:var(--surface); border:1px solid var(--line); color:var(--muted); font-size:12px}
-  .muted{color:var(--muted)}
-  .center{text-align:center}
-  .big{font-size:28px; font-weight:600; margin:8px 0}
-  label{display:flex; flex-direction:column; gap:6px; margin:6px 0; color:var(--muted); font-size:13px}
-  input,select,textarea{
-    background:var(--surface); border:1px solid #223146; color:var(--ink); padding:10px; border-radius:12px; outline:none;
-  }
-  input:focus,select:focus,textarea:focus{border-color:var(--accent); box-shadow:0 0 0 2px #5bbcff33}
-  button,.btn{
-    appearance:none; background:#123048; border:1px solid #244e72; color:var(--ink);
-    padding:10px 12px; border-radius:12px; cursor:pointer;
-  }
-  .btn.primary{background:#0f2740; border-color:#285a85}
-  .btn.ghost{background:transparent; border-color:#223146}
-  .btn.good{border-color:#1b6f52}
-  .btn.warn{border-color:#6d530f}
-  .list{list-style:none; padding:0; margin:0}
-  .list li{padding:10px; border-bottom:1px solid var(--line)}
-  table{width:100%; border-collapse:collapse}
-  th,td{padding:10px; border-bottom:1px solid var(--line); text-align:left}
-  th{color:var(--muted); font-weight:600}
-  canvas{max-width:100%; height:320px}
-
-  /* Bottom tab bar (fixed) */
-  nav.tabs{
-    position:fixed; left:0; right:0; bottom:0; z-index:9;
-    display:flex; gap:8px; justify-content:space-around; padding:10px 12px;
-    padding-bottom:calc(10px + env(safe-area-inset-bottom));
-    background:#0b0f14cc; border-top:1px solid var(--line); backdrop-filter:saturate(180%) blur(10px);
-  }
-  nav.tabs button{flex:1; background:var(--surface); border:1px solid #223146; border-radius:12px; padding:10px}
-  nav.tabs button[aria-selected="true"]{border-color:var(--accent); box-shadow:0 0 0 2px #5bbcff22}
-  section.view{display:none}
-  section.view.active{display:block}
-
-  /* Modal */
-  .modal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:#0008; z-index:20}
+  body{margin:0;color:var(--ink);background:linear-gradient(180deg,#071019,#0b0f14 30%,#0b0f14);
+       font:15px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  header{position:sticky;top:0;z-index:5;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
+         background:#0b0f14cc;border-bottom:1px solid var(--line);backdrop-filter:saturate(180%) blur(10px)}
+  h1{margin:0;font-size:18px;letter-spacing:.3px}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px;padding-bottom:100px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin:12px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 240px}
+  .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);font-size:12px}
+  .muted{color:var(--muted)}.center{text-align:center}.big{font-size:28px;font-weight:600;margin:8px 0}
+  label{display:flex;flex-direction:column;gap:6px;margin:6px 0;color:var(--muted);font-size:13px}
+  input,select,textarea{background:var(--surface);border:1px solid #223146;color:var(--ink);padding:10px;border-radius:12px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px #5bbcff33}
+  button,.btn{appearance:none;background:#123048;border:1px solid #244e72;color:var(--ink);padding:10px 12px;border-radius:12px;cursor:pointer}
+  .btn.primary{background:#0f2740;border-color:#285a85}.btn.ghost{background:transparent;border-color:#223146}
+  .btn.good{border-color:#1b6f52}.btn.warn{border-color:#6d530f}
+  .list{list-style:none;padding:0;margin:0}.list li{padding:10px;border-bottom:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left} th{color:var(--muted);font-weight:600}
+  canvas{max-width:100%;height:320px}
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:9;display:flex;gap:8px;justify-content:space-around;padding:10px 12px;
+           padding-bottom:calc(10px + env(safe-area-inset-bottom));background:#0b0f14cc;border-top:1px solid var(--line);backdrop-filter:saturate(180%) blur(10px)}
+  nav.tabs button{flex:1;background:var(--surface);border:1px solid #223146;border-radius:12px;padding:10px}
+  nav.tabs button[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 2px #5bbcff22}
+  section.view{display:none} section.view.active{display:block}
+  .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0008;z-index:20}
   .modal.active{display:flex}
-  .modal .panel{width:min(700px,92vw); background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px}
-  .modal .head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
-
-  /* Touch action for modern browsers */
+  .modal .panel{width:min(700px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .modal .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
   a,area,button,input,label,select,summary,textarea,[tabindex]{touch-action:manipulation}
 </style>
 </head>
@@ -222,21 +189,15 @@
         <h3>Settings</h3>
         <button class="btn ghost" id="btnCloseSettings">Close</button>
       </div>
-
       <div class="row">
-        <label>Home Latitude
-          <input type="number" id="homeLat" step="0.000001" placeholder="e.g. 42.9634">
-        </label>
-        <label>Home Longitude
-          <input type="number" id="homeLng" step="0.000001" placeholder="-85.6681">
-        </label>
+        <label>Home Latitude <input type="number" id="homeLat" step="0.000001" placeholder="e.g. 42.9634"></label>
+        <label>Home Longitude <input type="number" id="homeLng" step="0.000001" placeholder="-85.6681"></label>
       </div>
       <div class="row">
-        <button class="btn good" id="btnUseLocation" title="Fill with your current GPS location">Use My Current Location</button>
+        <button class="btn good" id="btnUseLocation">Use My Current Location</button>
         <button class="btn primary" id="btnSaveSettings2">Save Settings</button>
         <button class="btn warn" id="btnClearAll">Clear All Data</button>
       </div>
-
       <hr>
       <h4>Data Sources</h4>
       <div class="row" style="align-items:end">
@@ -252,122 +213,92 @@
 
 <script>
 /* ===== Helpers ===== */
-const $ = (s, r=document) => r.querySelector(s);
-const $$ = (s, r=document) => [...r.querySelectorAll(s)];
-const store = {
-  get:(k,d=null)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},
-  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),
-  del:(k)=>localStorage.removeItem(k),
-  all:()=>({
-    items:store.get('items',[]),
-    expenses:store.get('expenses',[]),
-    stores:store.get('stores',[]),
-    sales:store.get('sales',[]),
-    settings:store.get('settings',{home:{lat:null,lng:null}})
-  })
-};
-const money = n => '$' + (Number(n||0)).toFixed(2);
-const todayISO = () => new Date().toISOString().slice(0,10);
-function toast(msg, kind){
-  let el=$('#toast'); if(!el){el=document.createElement('div'); el.id='toast'; document.body.appendChild(el)}
-  el.textContent=msg;
-  el.style.cssText=`position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
-    background:${kind==='bad'?'#3a1016':'#0f2740'};border:1px solid #244e72;padding:10px 14px;border-radius:12px;z-index:1000`;
-  clearTimeout(el._t); el._t=setTimeout(()=>el.remove(),2200);
-}
-
-/* ===== State / charts ===== */
-let charts={sales:null, expense:null};
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const store={ get:(k,d=null)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},
+  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)), del:(k)=>localStorage.removeItem(k),
+  all:()=>({items:store.get('items',[]),expenses:store.get('expenses',[]),stores:store.get('stores',[]),
+            sales:store.get('sales',[]),settings:store.get('settings',{home:{lat:null,lng:null}})}) };
+const money=n=>'$'+(Number(n||0)).toFixed(2), todayISO=()=>new Date().toISOString().slice(0,10);
+function toast(msg,kind){let el=$('#toast'); if(!el){el=document.createElement('div');el.id='toast';document.body.appendChild(el)}
+  el.textContent=msg; el.style.cssText=`position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:${kind==='bad'?'#3a1016':'#0f2740'};border:1px solid #244e72;padding:10px 14px;border-radius:12px;z-index:1000`;
+  clearTimeout(el._t); el._t=setTimeout(()=>el.remove(),2200)}
 
 /* ===== Tabs ===== */
-function activateView(id){
-  $$('.view').forEach(v=>v.classList.remove('active'));
-  $('#'+id).classList.add('active');
-  $$('nav.tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected','false'));
-  $(`[aria-controls="${id}"]`).setAttribute('aria-selected','true');
-}
-$$('nav.tabs [role="tab"]').forEach(btn=>{
-  btn.addEventListener('click',()=>activateView(btn.getAttribute('aria-controls')))
-});
+function activateView(id){ $$('.view').forEach(v=>v.classList.remove('active')); $('#'+id).classList.add('active');
+  $$('nav.tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected','false')); $(`[aria-controls="${id}"]`).setAttribute('aria-selected','true'); }
+$$('nav.tabs [role="tab"]').forEach(btn=>btn.addEventListener('click',()=>activateView(btn.getAttribute('aria-controls'))));
 
-/* ===== Quick Add dynamic form ===== */
+/* ===== Quick Add ===== */
 const qaType=$('#qaType'), qaForm=$('#qaForm');
 function renderQA(){
   const t=qaType.value;
-  if(t==='item'){
-    qaForm.innerHTML=`
+  if(t==='item'){ qaForm.innerHTML=`
+    <div class="row">
+      <label>Date<input type="date" id="i_date" value="${todayISO()}"></label>
+      <label>Item Title<input type="text" id="i_title" placeholder="Sony DVD player"></label>
+      <label>Purchase Price<input type="number" step="0.01" id="i_price" placeholder="4.99"></label>
+    </div>
+    <div class="row">
+      <label>Store<input type="text" id="i_store" placeholder="Goodwill Outlet"></label>
+      <label>eBay Sell-through Rate (%)<input type="number" step="0.1" id="i_str" placeholder="e.g. 65"></label>
+    </div>
+    <label>Notes<textarea id="i_notes" rows="2" placeholder="Condition, model, comps..."></textarea></label>
+    <details class="card" style="margin-top:10px"><summary class="muted">Optional sale fields</summary>
       <div class="row">
-        <label>Date<input type="date" id="i_date" value="${todayISO()}"></label>
-        <label>Item Title<input type="text" id="i_title" placeholder="Sony DVD player"></label>
-        <label>Purchase Price<input type="number" step="0.01" id="i_price" placeholder="4.99"></label>
+        <label>Listed Date<input type="date" id="i_listed"></label>
+        <label>Sold Date<input type="date" id="i_sold"></label>
+        <label>Sold Price<input type="number" step="0.01" id="i_soldfor"></label>
       </div>
-      <div class="row">
-        <label>Store<input type="text" id="i_store" placeholder="Goodwill Outlet"></label>
-        <label>eBay Sell-through Rate (%)<input type="number" step="0.1" id="i_str" placeholder="e.g. 65"></label>
-      </div>
-      <label>Notes<textarea id="i_notes" rows="2" placeholder="Condition, model, comps..."></textarea></label>
-      <details class="card" style="margin-top:10px"><summary class="muted">Optional sale fields</summary>
-        <div class="row">
-          <label>Listed Date<input type="date" id="i_listed"></label>
-          <label>Sold Date<input type="date" id="i_sold"></label>
-          <label>Sold Price<input type="number" step="0.01" id="i_soldfor"></label>
-        </div>
-      </details>`;
-  }else if(t==='store'){
-    qaForm.innerHTML=`
-      <div class="row">
-        <label>Store Name<input type="text" id="s_name" placeholder="New 2 You"></label>
-        <label>Location (address/free text)<input type="text" id="s_loc" placeholder="123 Main St, Grand Rapids"></label>
-      </div>
-      <div class="row">
-        <label>Open Time<input type="time" id="s_open"></label>
-        <label>Close Time<input type="time" id="s_close"></label>
-      </div>
-      <div class="row">
-        <label>Latitude (optional)<input type="number" step="0.000001" id="s_lat" placeholder="42.9634"></label>
-        <label>Longitude (optional)<input type="number" step="0.000001" id="s_lng" placeholder="-85.6681"></label>
-      </div>
-      <label>Notes<textarea id="s_notes" rows="2"></textarea></label>`;
-  }else{
-    qaForm.innerHTML=`
-      <div class="row">
-        <label>Expense Name<input type="text" id="e_name" placeholder="Poly mailers"></label>
-        <label>Category
-          <select id="e_cat">
-            <option>Cost of Goods</option><option>Shipping</option><option>eBay Fees</option>
-            <option>Supplies</option><option>Equipment</option><option>Gas</option>
-            <option>Mileage</option><option>Other</option>
-          </select>
-        </label>
-        <label>Amount ($)<input type="number" id="e_amt" step="0.01" placeholder="12.50"></label>
-      </div>
-      <label>Notes<textarea id="e_notes" rows="2"></textarea></label>
-      <label>Date<input type="date" id="e_date" value="${todayISO()}"></label>`;
-  }
+    </details>`; }
+  else if(t==='store'){ qaForm.innerHTML=`
+    <div class="row">
+      <label>Store Name<input type="text" id="s_name" placeholder="New 2 You"></label>
+      <label>Location (address/free text)<input type="text" id="s_loc" placeholder="123 Main St, Grand Rapids"></label>
+    </div>
+    <div class="row">
+      <label>Open Time<input type="time" id="s_open"></label>
+      <label>Close Time<input type="time" id="s_close"></label>
+    </div>
+    <div class="row">
+      <label>Latitude (optional)<input type="number" step="0.000001" id="s_lat" placeholder="42.9634"></label>
+      <label>Longitude (optional)<input type="number" step="0.000001" id="s_lng" placeholder="-85.6681"></label>
+    </div>
+    <label>Notes<textarea id="s_notes" rows="2"></textarea></label>`; }
+  else { qaForm.innerHTML=`
+    <div class="row">
+      <label>Expense Name<input type="text" id="e_name" placeholder="Poly mailers"></label>
+      <label>Category
+        <select id="e_cat"><option>Cost of Goods</option><option>Shipping</option><option>eBay Fees</option>
+          <option>Supplies</option><option>Equipment</option><option>Gas</option><option>Mileage</option><option>Other</option></select>
+      </label>
+      <label>Amount ($)<input type="number" id="e_amt" step="0.01" placeholder="12.50"></label>
+    </div>
+    <label>Notes<textarea id="e_notes" rows="2"></textarea></label>
+    <label>Date<input type="date" id="e_date" value="${todayISO()}"></label>`; }
 }
 qaType.addEventListener('change',renderQA); renderQA();
 
 $('#qaSave').addEventListener('click', ()=>{
   const data=store.all();
   if(qaType.value==='item'){
-    const it={id:'i_'+Date.now(), title:$('#i_title').value.trim(), date:$('#i_date').value||todayISO(),
-      price:Number($('#i_price').value||0), store:$('#i_store').value.trim(),
-      str:Number($('#i_str').value||0), notes:$('#i_notes').value.trim(),
-      listed_date:$('#i_listed').value||null, sold_date:$('#i_sold').value||null,
+    const it={id:'i_'+Date.now(),title:$('#i_title').value.trim(),date:$('#i_date').value||todayISO(),
+      price:Number($('#i_price').value||0),store:$('#i_store').value.trim(),str:Number($('#i_str').value||0),
+      notes:$('#i_notes').value.trim(),listed_date:$('#i_listed').value||null,sold_date:$('#i_sold').value||null,
       sold_for:$('#i_soldfor').value?Number($('#i_soldfor').value):null};
     data.items.push(it); store.set('items',data.items); toast('Item saved');
-  }else if(qaType.value==='store'){
-    const s={id:'s_'+Date.now(), name:$('#s_name').value.trim(), location:$('#s_loc').value.trim(),
-      open:$('#s_open').value||null, close:$('#s_close').value||null,
-      lat:$('#s_lat').value?Number($('#s_lat').value):null, lng:$('#s_lng').value?Number($('#s_lng').value):null,
+  } else if(qaType.value==='store'){
+    const s={id:'s_'+Date.now(),name:$('#s_name').value.trim(),location:$('#s_loc').value.trim(),
+      open:$('#s_open').value||null,close:$('#s_close').value||null,
+      lat:$('#s_lat').value?Number($('#s_lat').value):null,lng:$('#s_lng').value?Number($('#s_lng').value):null,
       notes:$('#s_notes').value.trim()};
     data.stores.push(s); store.set('stores',data.stores); toast('Store saved');
-  }else{
-    const e={id:'e_'+Date.now(), name:$('#e_name').value.trim(), category:$('#e_cat').value,
-      amount:Number($('#e_amt').value||0), notes:$('#e_notes').value.trim(), date:$('#e_date').value||todayISO()};
+  } else {
+    const e={id:'e_'+Date.now(),name:$('#e_name').value.trim(),category:$('#e_cat').value,
+      amount:Number($('#e_amt').value||0),notes:$('#e_notes').value.trim(),date:$('#e_date').value||todayISO()};
     data.expenses.push(e); store.set('expenses',data.expenses); toast('Expense saved');
   }
-  renderAll();
+  tryRenderAll();
 });
 $('#qaReset').addEventListener('click',renderQA);
 
@@ -375,15 +306,13 @@ $('#qaReset').addEventListener('click',renderQA);
 function renderInventory(){
   const data=store.all(), q=$('#invSearch').value.toLowerCase().trim(), f=$('#invFilter').value, tbody=$('#invTable tbody');
   const soldTitles=new Set(data.sales.map(x=>(x.title||'').toLowerCase().trim()));
-  let items=data.items.map(i=>({...i,_sold: (i.sold_for&&i.sold_date)||soldTitles.has((i.title||'').toLowerCase().trim())}));
+  let items=data.items.map(i=>({...i,_sold:(i.sold_for&&i.sold_date)||soldTitles.has((i.title||'').toLowerCase().trim())}));
   if(q) items=items.filter(i=>(i.title||'').toLowerCase().includes(q)||(i.store||'').toLowerCase().includes(q));
   if(f==='sold') items=items.filter(i=>i._sold); if(f==='unsold') items=items.filter(i=>!i._sold);
-  tbody.innerHTML = items.map(i=>`
-    <tr>
-      <td>${i.title||''}</td><td>${i.store||''}</td><td>${i.date||''}</td><td>${i.listed_date||''}</td><td>${i.sold_date||''}</td>
-      <td>${money(i.price)}</td><td>${i.sold_for!=null?money(i.sold_for):''}</td>
-      <td>${i._sold?'<span class="pill" style="border-color:#1b6f52">Sold</span>':'<span class="pill">Not Sold Yet</span>'}</td>
-    </tr>`).join('');
+  tbody.innerHTML=items.map(i=>`
+    <tr><td>${i.title||''}</td><td>${i.store||''}</td><td>${i.date||''}</td><td>${i.listed_date||''}</td><td>${i.sold_date||''}</td>
+    <td>${money(i.price)}</td><td>${i.sold_for!=null?money(i.sold_for):''}</td>
+    <td>${i._sold?'<span class="pill" style="border-color:#1b6f52">Sold</span>':'<span class="pill">Not Sold Yet</span>'}</td></tr>`).join('');
 }
 $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
@@ -397,191 +326,131 @@ function renderExpenses(){
 }
 
 /* ===== Routes ===== */
-function haversine(lat1,lon1,lat2,lon2){
-  const toRad=n=>n*Math.PI/180, R=6371, dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
-  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
+function haversine(lat1,lon1,lat2,lon2){const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
 function renderRoutes(){
   const data=store.all(), home=data.settings?.home||{lat:null,lng:null}, ul=$('#routeList');
   let list=data.stores.slice().sort((a,b)=>(a.open||'23:59').localeCompare(b.open||'23:59'));
   if(home.lat!=null && home.lng!=null){
-    const idx=list
-      .map((s,i)=> (s.lat==null||s.lng==null)?{i,d:Infinity}:{i,d:haversine(home.lat,home.lng,s.lat,s.lng)})
-      .reduce((best,c)=>c.d<best.d?c:best,{i:-1,d:Infinity}).i;
-    if(idx>=0){ const [closest]=list.splice(idx,1); list.push(closest); }
+    const idx=list.map((s,i)=>(s.lat==null||s.lng==null)?{i,d:Infinity}:{i,d:haversine(home.lat,home.lng,s.lat,s.lng)})
+                .reduce((best,c)=>c.d<best.d?c:best,{i:-1,d:Infinity}).i;
+    if(idx>=0){const [closest]=list.splice(idx,1); list.push(closest);}
   }
-  ul.innerHTML = list.map(s=>{
-    const maps = (s.lat!=null && s.lng!=null) ? `https://maps.apple.com/?daddr=${s.lat},${s.lng}` : '';
+  ul.innerHTML=list.map(s=>{
+    const maps=(s.lat!=null&&s.lng!=null)?`https://maps.apple.com/?daddr=${s.lat},${s.lng}`:'';
     return `<li><strong>${s.name||''}</strong> <span class="muted">${s.open||''}–${s.close||''}</span><br>
-      <small class="muted">${s.location||''}</small><br>${maps?`<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>`:''}</li>`;
-  }).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
+      <small class="muted">${s.location||''}</small><br>${maps?`<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>`:''}</li>`;}).join('')
+    || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
 $('#btnOrderRoute').addEventListener('click',renderRoutes);
 
-/* ===== Dashboard (Home) ===== */
-function sumSalesTotal(){ return store.get('sales',[]).reduce((s,x)=>s+Number(x.total||0),0) }
+/* ===== Dashboard ===== */
+function sumSalesTotal(){return store.get('sales',[]).reduce((s,x)=>s+Number(x.total||0),0)}
 function renderTotalSales(){ $('#totalSales').textContent = money(sumSalesTotal()) }
 
 function groupSales(period){
-  const sales=store.get('sales',[]), now=new Date(), fmtDate=d=>d.toISOString().slice(0,10);
+  const sales=store.get('sales',[]), now=new Date(), fmt=d=>d.toISOString().slice(0,10);
   const startOfWeek=d=>{const t=new Date(d); const w=(t.getDay()+6)%7; t.setDate(t.getDate()-w); t.setHours(0,0,0,0); return t;};
   const startOfMonth=d=>new Date(d.getFullYear(), d.getMonth(), 1);
   let labels=[], data=[];
-  if(period==='today'){
-    labels=[...Array(24)].map((_,h)=>h+":00"); const map=new Array(24).fill(0);
-    sales.forEach(s=>{ if(!s.date) return; const dt=new Date(s.date); if(fmtDate(dt)===fmtDate(now)) map[dt.getHours()]+=Number(s.total||0); });
-    data=map;
-  }else if(period==='week'){
-    const start=startOfWeek(now); labels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const map=new Array(7).fill(0);
-    sales.forEach(s=>{ if(!s.date) return; const dt=new Date(s.date); if(dt>=start){ const i=(dt.getDay()+6)%7; map[i]+=Number(s.total||0);} });
-    data=map;
-  }else if(period==='month'){
-    const start=startOfMonth(now), days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  if(period==='today'){ labels=[...Array(24)].map((_,h)=>h+":00"); const map=new Array(24).fill(0);
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(fmt(dt)===fmt(now)) map[dt.getHours()]+=Number(s.total||0)}); data=map; }
+  else if(period==='week'){ const start=startOfWeek(now); labels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const map=new Array(7).fill(0);
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start){const i=(dt.getDay()+6)%7; map[i]+=Number(s.total||0)}}); data=map; }
+  else if(period==='month'){ const start=startOfMonth(now), days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
     labels=[...Array(days)].map((_,i)=>String(i+1)); const map=new Array(days).fill(0);
-    sales.forEach(s=>{ if(!s.date) return; const dt=new Date(s.date);
-      if(dt>=start && dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number(s.total||0); });
-    data=map;
-  }else{
-    labels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const map=new Array(12).fill(0);
-    sales.forEach(s=>{ if(!s.date) return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number(s.total||0); });
-    data=map;
-  }
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start&&dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number(s.total||0)}); data=map; }
+  else { labels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const map=new Array(12).fill(0);
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number(s.total||0)}); data=map; }
   return {labels,data};
 }
+
 function renderSalesChart(){
+  const el=$('#salesChart'); if(!el) return;
+  const hasChart=typeof Chart!=='undefined';
   const {labels,data}=groupSales($('#periodSelect').value);
-  const ctx=$('#salesChart').getContext('2d');
-  if(charts.sales) charts.sales.destroy();
-  charts.sales=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Sales',data}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}});
+  if(!hasChart){ console.warn('Chart.js not loaded; skipping sales chart'); return; }
+  if(window.__charts && window.__charts.sales){ window.__charts.sales.destroy(); }
+  const ctx=el.getContext('2d');
+  window.__charts=window.__charts||{};
+  window.__charts.sales=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Sales',data}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}});
 }
-$('#periodSelect').addEventListener('change',renderSalesChart);
+$('#periodSelect').addEventListener('change',()=>safe(renderSalesChart));
 
 function renderExpensePie(){
-  const ex=store.get('expenses',[]), by={};
-  ex.forEach(e=> by[e.category]=(by[e.category]||0)+Number(e.amount||0));
+  const el=$('#expenseChart'); if(!el) return;
+  const hasChart=typeof Chart!=='undefined';
+  const by={}, ex=store.get('expenses',[]);
+  ex.forEach(e=>by[e.category]=(by[e.category]||0)+Number(e.amount||0));
   const entries=Object.entries(by).sort((a,b)=>b[1]-a[1]);
-  const ctx=$('#expenseChart').getContext('2d');
-  if(charts.expense) charts.expense.destroy();
-  charts.expense=new Chart(ctx,{type:'pie',data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1])}]},options:{responsive:true,maintainAspectRatio:false}});
   $('#expenseList').innerHTML = entries.map(([k,v])=>`<li><strong>${k}</strong> — ${money(v)}</li>`).join('') || '<li class="muted">No expenses yet.</li>';
-}
-
-function renderStoresPerf(){
-  const items=store.get('items',[]), sales=store.get('sales',[]);
-  const soldByTitle={}; sales.forEach(s=>{ const t=(s.title||'').toLowerCase().trim(); soldByTitle[t]=(soldByTitle[t]||0)+Number(s.total||0); });
-  const perf={}; items.forEach(it=>{
-    const k=it.store||''; if(!perf[k]) perf[k]={cogs:0,count:0,sold:0};
-    perf[k].cogs+=Number(it.price||0); perf[k].count+=1;
-    const key=(it.title||'').toLowerCase().trim(); if(soldByTitle[key]) perf[k].sold+=soldByTitle[key];
-  });
-  const rows=Object.entries(perf).sort((a,b)=>b[1].sold-a[1].sold);
-  $('#storesPerf').innerHTML = rows.map(([name,p])=>`
-    <li><strong>${name||'(no store set)'}</strong><br>
-      <small class="muted">COGS: ${money(p.cogs)} • Items: ${p.count} • Sold: ${money(p.sold)}</small>
-    </li>`).join('') || '<li class="muted">No store data yet.</li>';
+  if(!hasChart){ console.warn('Chart.js not loaded; skipping expense chart'); return; }
+  if(window.__charts && window.__charts.expense){ window.__charts.expense.destroy(); }
+  const ctx=el.getContext('2d');
+  window.__charts=window.__charts||{};
+  window.__charts.expense=new Chart(ctx,{type:'pie',data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1])}]},
+    options:{responsive:true,maintainAspectRatio:false}});
 }
 
 /* ===== eBay CSV import ===== */
-function parseCsv(text){
-  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
-  const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
-  const splitCSV=line=>{
-    const out=[]; let cur='',q=false;
-    for(let i=0;i<line.length;i++){
-      const c=line[i];
-      if(c==='"' && (i===0 || line[i-1]!== '\\')) q=!q;
-      else if(c===',' && !q){ out.push(cur); cur=''; continue; }
-      cur+=c;
-    }
-    out.push(cur);
-    return out.map(x=>x.trim().replace(/^"|"$/g,''));
-  };
-  return lines.slice(1).map(l=>{ const cells=splitCSV(l), o={}; headers.forEach((h,i)=>o[h]=cells[i]); return o; });
-}
-function pickNumber(obj,keys){ for(const k of keys){ if(k in obj && obj[k]!=='' && obj[k]!=null){ const v=String(obj[k]).replace(/[^0-9.\-]/g,''); if(v!==''&&!Number.isNaN(Number(v))) return Number(v); } } return null; }
-function pickDate(obj,keys){ for(const k of keys){ if(k in obj && obj[k]){ const d=new Date(obj[k]); if(!isNaN(d)) return d.toISOString(); } } return null; }
-function pickText(obj,keys){ for(const k of keys){ if(k in obj && obj[k]) return String(obj[k]); } return ''; }
-
-function importEbayCsv(file){
-  const r=new FileReader();
-  r.onload=()=>{
-    const rows=parseCsv(r.result);
-    const sales=rows.map(row=>({
-      title: pickText(row,['Item Title','Title','Item title','Item']),
-      total: pickNumber(row,['Total Price','Item Total','Sold For','Total','Order total','Sale Price','Amount']),
-      date:  pickDate(row,['Paid On Date','Sale Date','Date Sold','Sold On','Order date','Paid Date','Date'])
-    })).filter(x=>x.total!=null && x.date!=null);
-    const all=store.all(); all.sales=sales; store.set('sales',all.sales);
-    toast(`Imported ${sales.length} sales from CSV`); renderAll(); activateView('view-home');
-  };
-  r.readAsText(file);
-}
+function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
+  const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'')); const split=line=>{const out=[];let cur='',q=false;
+    for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=='\\')) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;}
+    out.push(cur); return out.map(x=>x.trim().replace(/^"|"$/g,'')); };
+  return lines.slice(1).map(l=>{const cells=split(l),o={}; headers.forEach((h,i)=>o[h]=cells[i]); return o;}); }
+function pickNumber(o,ks){ for(const k of ks){ if(k in o && o[k]!=='' && o[k]!=null){const v=String(o[k]).replace(/[^0-9.\-]/g,''); if(v!==''&&!Number.isNaN(Number(v))) return Number(v);} } return null; }
+function pickDate(o,ks){ for(const k of ks){ if(k in o && o[k]){const d=new Date(o[k]); if(!isNaN(d)) return d.toISOString();} } return null; }
+function pickText(o,ks){ for(const k of ks){ if(k in o && o[k]) return String(o[k]); } return ''; }
+function importEbayCsv(file){ const r=new FileReader(); r.onload=()=>{ const rows=parseCsv(r.result);
+  const sales=rows.map(row=>({ title:pickText(row,['Item Title','Title','Item title','Item']),
+    total:pickNumber(row,['Total Price','Item Total','Sold For','Total','Order total','Sale Price','Amount']),
+    date:pickDate(row,['Paid On Date','Sale Date','Date Sold','Sold On','Order date','Paid Date','Date']) }))
+    .filter(x=>x.total!=null && x.date!=null);
+  const all=store.all(); all.sales=sales; store.set('sales',all.sales); toast(`Imported ${sales.length} sales from CSV`); tryRenderAll(); activateView('view-home'); };
+  r.readAsText(file); }
 $('#btnImportEbay').addEventListener('click',()=>$('#ebayCsv').click());
-$('#ebayCsv').addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) importEbayCsv(f); });
+$('#ebayCsv').addEventListener('change',e=>{const f=e.target.files?.[0]; if(f) importEbayCsv(f);});
 
 /* ===== Backup ===== */
-$('#btnExport').addEventListener('click',()=>{
-  const payload=JSON.stringify(store.all(),null,2);
-  const blob=new Blob([payload],{type:'application/json'}), a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download=`scale-flipz-backup-${Date.now()}.json`; a.click(); URL.revokeObjectURL(a.href);
-});
-$('#backupFile').addEventListener('change',e=>{
-  const f=e.target.files?.[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=()=>{ try{
-    const obj=JSON.parse(r.result);
-    if(obj.items) store.set('items',obj.items);
-    if(obj.expenses) store.set('expenses',obj.expenses);
-    if(obj.stores) store.set('stores',obj.stores);
-    if(obj.sales) store.set('sales',obj.sales);
-    if(obj.settings) store.set('settings',obj.settings);
-    toast('Backup imported'); renderAll();
-  }catch{ toast('Invalid backup file','bad'); }};
-  r.readAsText(f);
-});
+$('#btnExport').addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(store.all(),null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`scale-flipz-backup-${Date.now()}.json`; a.click(); URL.revokeObjectURL(a.href); });
+$('#backupFile').addEventListener('change',e=>{const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{try{const o=JSON.parse(r.result); ['items','expenses','stores','sales','settings'].forEach(k=>{if(o[k]) store.set(k,o[k]);}); toast('Backup imported'); tryRenderAll();}catch{toast('Invalid backup file','bad');}};
+  r.readAsText(f);});
 
-/* ===== Settings & Use My Location ===== */
+/* ===== Settings & Location ===== */
 const modal=$('#modalSettings');
 $('#btnSettings').addEventListener('click',()=>{ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); loadSettings(); });
 $('#btnCloseSettings').addEventListener('click',()=>{ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); });
+function loadSettings(){ const s=store.get('settings',{home:{lat:null,lng:null}}); $('#homeLat').value=s.home?.lat??''; $('#homeLng').value=s.home?.lng??''; }
+$('#btnSaveSettings2').addEventListener('click',()=>{ const s=store.get('settings',{home:{lat:null,lng:null}});
+  s.home={lat:$('#homeLat').value?Number($('#homeLat').value):null, lng:$('#homeLng').value?Number($('#homeLng').value):null};
+  store.set('settings',s); toast('Settings saved'); safe(renderRoutes); });
+$('#btnClearAll').addEventListener('click',()=>{ if(confirm('Erase all local data? This cannot be undone.')){
+  ['items','expenses','stores','sales','settings'].forEach(k=>store.del(k)); tryRenderAll(); toast('All data cleared'); }});
+$('#btnUseLocation').addEventListener('click',()=>{ if(!('geolocation' in navigator)){toast('Geolocation not supported','bad');return;}
+  toast('Getting your location…'); navigator.geolocation.getCurrentPosition(
+    (pos)=>{const {latitude,longitude}=pos.coords||{}; if(typeof latitude==='number'){ $('#homeLat').value=latitude.toFixed(6); $('#homeLng').value=longitude.toFixed(6);
+      const s=store.get('settings',{home:{lat:null,lng:null}}); s.home={lat:Number($('#homeLat').value),lng:Number($('#homeLng').value)}; store.set('settings',s);
+      toast('Home location set'); safe(renderRoutes);} else {toast('Unable to read GPS','bad');}},
+    (err)=>{const reasons={1:'Permission denied',2:'Position unavailable',3:'Timeout'}; toast(`Location error: ${reasons[err.code]||'Unknown'}`,'bad');},
+    {enableHighAccuracy:true,timeout:10000,maximumAge:600000}); });
 
-function loadSettings(){
-  const s=store.get('settings',{home:{lat:null,lng:null}});
-  $('#homeLat').value = s.home?.lat ?? '';
-  $('#homeLng').value = s.home?.lng ?? '';
+/* ===== Safe render helpers ===== */
+function safe(fn){ try{ fn(); } catch(e){ console.error(e); } }
+function tryRenderAll(){ safe(renderTotalSales); safe(()=>renderSalesChart()); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); }
+
+/* Initial render AFTER page fully loads (ensures Chart.js is ready) */
+window.addEventListener('load', tryRenderAll);
+</script>
+
+<!-- PWA: register your service worker -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
-$('#btnSaveSettings2').addEventListener('click',()=>{
-  const s=store.get('settings',{home:{lat:null,lng:null}});
-  s.home={ lat: $('#homeLat').value?Number($('#homeLat').value):null,
-           lng: $('#homeLng').value?Number($('#homeLng').value):null };
-  store.set('settings',s); toast('Settings saved'); renderRoutes();
-});
-$('#btnClearAll').addEventListener('click',()=>{
-  if(confirm('Erase all local data? This cannot be undone.')){
-    ['items','expenses','stores','sales','settings'].forEach(k=>store.del(k));
-    renderAll(); toast('All data cleared');
-  }
-});
-
-// Use My Current Location
-$('#btnUseLocation').addEventListener('click', ()=>{
-  if(!('geolocation' in navigator)){
-    toast('Geolocation not supported on this device','bad'); return;
-  }
-  toast('Getting your location…');
-  navigator.geolocation.getCurrentPosition(
-    pos=>{
-      const {latitude, longitude}=pos.coords || {};
-      if(typeof latitude==='number' && typeof longitude==='number'){
-        $('#homeLat').value=latitude.toFixed(6);
-        $('#homeLng').value=longitude.toFixed(6);
-        const s=store.get('settings',{home:{lat:null,lng:null}});
-        s.home={lat: Number($('#homeLat').value), lng: Number($('#homeLng').value)};
-        store.set('settings',s);
-        toast('Home location set'); renderRoutes();
-      }else
-
 </script>
 </body>
 </html>
+

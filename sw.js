@@ -1,5 +1,5 @@
-// Thrift Tracker / Scale Flipz — SW (network-first for navigations)
-const VERSION = 'tt-v6-2025-08-16';
+// Scale Flipz PWA — Service Worker (network-first for navigations)
+const VERSION = 'tt-v7-2025-08-16';
 
 const APP_SHELL = [
   './',
@@ -29,9 +29,9 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // don't cache cross-origin (e.g., CDN)
+  if (url.origin !== self.location.origin) return; // ignore cross-origin (e.g., CDN)
 
-  // Always try network first for top-level navigations (prevents "old app" from coming back)
+  // Network-first for navigations (prevents old HTML coming back)
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -40,9 +40,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(VERSION).then((c) => c.put(req, copy));
           return res;
         })
-        .catch(() =>
-          caches.match(req).then((hit) => hit || caches.match('./index.html'))
-        )
+        .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
     );
     return;
   }

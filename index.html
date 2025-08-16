@@ -484,7 +484,8 @@ window.addEventListener('load', tryRenderAll);
 <!-- PWA: register your service worker -->
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  // Cache-bust the SW file so GitHub Pages/CDN can’t serve an old copy
+  navigator.serviceWorker.register('sw.js?v=tt-v8-2025-08-16a').catch(()=>{});
 }
 </script>
 </body>

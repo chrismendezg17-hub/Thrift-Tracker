@@ -1,5 +1,5 @@
 // Scale Flipz PWA — Service Worker (network-first for navigations)
-const VERSION = 'tt-v7-2025-08-16';
+const VERSION = 'tt-v8-2025-08-16a';
 
 const APP_SHELL = [
   './',

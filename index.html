@@ -375,16 +375,34 @@ function groupSales(period){
   return {labels,data};
 }
 function renderSalesChart(){
-  const el=$('#salesChart'); if(!el) return;
-  const hasChart=typeof Chart!=='undefined';
-  const {labels,data}=groupSales($('#periodSelect').value);
+  const el = $('#salesChart'); if(!el) return;
+  const hasChart = typeof Chart !== 'undefined';
+  const { labels, data } = groupSales($('#periodSelect').value);
   if(!hasChart){ console.warn('Chart.js not loaded; skipping sales chart'); return; }
+
+  // Destroy previous instance to avoid duplicates
   if(window.__charts && window.__charts.sales){ window.__charts.sales.destroy(); }
-  const ctx=el.getContext('2d');
-  window.__charts=window.__charts||{};
-  window.__charts.sales=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Sales',data}]},
-    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}});
+
+  const ctx = el.getContext('2d');
+  window.__charts = window.__charts || {};
+  window.__charts.sales = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Sales', data }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: 1000,      // <<< hard cap
+          ticks: { stepSize: 100 }
+        }
+      }
+    }
+  });
 }
+
 $('#periodSelect').addEventListener('change',()=>safe(renderSalesChart));
 
 function renderExpensePie(){

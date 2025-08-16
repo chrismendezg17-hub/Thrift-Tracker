@@ -5,18 +5,28 @@
 <title>Scale Flipz Operations</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0f14">
-<!-- iOS PWA -->
+<!-- PWA metas -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Scale Flipz">
+<meta name="mobile-web-app-capable" content="yes">
 
 <!-- PWA links -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 
-<!-- Chart.js (CDN) -->
-<script src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Chart.js primary + fallback -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script>
+if (typeof Chart === 'undefined') {
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js';
+  s.crossOrigin = 'anonymous';
+  s.onload = function(){ if (window.tryRenderAll) tryRenderAll(); };
+  document.head.appendChild(s);
+}
+</script>
 
 <style>
   :root{
@@ -317,7 +327,7 @@ function renderInventory(){
 $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
 
-/* ===== Expenses ===== */
+/* ===== Expenses (list + pie data) ===== */
 function renderExpenses(){
   const ex=store.get('expenses',[]);
   $('#expenseLog').innerHTML = ex.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
@@ -364,7 +374,6 @@ function groupSales(period){
     sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number(s.total||0)}); data=map; }
   return {labels,data};
 }
-
 function renderSalesChart(){
   const el=$('#salesChart'); if(!el) return;
   const hasChart=typeof Chart!=='undefined';
@@ -391,6 +400,33 @@ function renderExpensePie(){
   window.__charts=window.__charts||{};
   window.__charts.expense=new Chart(ctx,{type:'pie',data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1])}]},
     options:{responsive:true,maintainAspectRatio:false}});
+}
+
+/* ===== Stores Performance (FIX for missing function) ===== */
+function renderStoresPerf(){
+  const items = store.get('items', []);
+  const sales = store.get('sales', []);
+  const soldByTitle = {};
+  sales.forEach(s=>{
+    const t = (s.title||'').toLowerCase().trim();
+    soldByTitle[t] = (soldByTitle[t]||0) + Number(s.total||0);
+  });
+  const perf = {};
+  items.forEach(it=>{
+    const k = it.store || '';
+    if(!perf[k]) perf[k] = { cogs:0, count:0, sold:0 };
+    perf[k].cogs += Number(it.price||0);
+    perf[k].count += 1;
+    const key = (it.title||'').toLowerCase().trim();
+    if(soldByTitle[key]) perf[k].sold += soldByTitle[key];
+  });
+  const rows = Object.entries(perf).sort((a,b)=> b[1].sold - a[1].sold);
+  const ul = document.querySelector('#storesPerf');
+  ul.innerHTML = rows.map(([name,p])=>`
+    <li><strong>${name||'(no store set)'}</strong><br>
+      <small class="muted">COGS: ${money(p.cogs)} • Items: ${p.count} • Sold: ${money(p.sold)}</small>
+    </li>
+  `).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
 
 /* ===== eBay CSV import ===== */
@@ -441,7 +477,7 @@ $('#btnUseLocation').addEventListener('click',()=>{ if(!('geolocation' in naviga
 function safe(fn){ try{ fn(); } catch(e){ console.error(e); } }
 function tryRenderAll(){ safe(renderTotalSales); safe(()=>renderSalesChart()); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); }
 
-/* Initial render AFTER page fully loads (ensures Chart.js is ready) */
+/* Initial render AFTER page fully loads (ensures Chart.js ready if available) */
 window.addEventListener('load', tryRenderAll);
 </script>
 
@@ -451,6 +487,9 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 </script>
+</body>
+</html>
+
 </body>
 </html>
 

@@ -36,35 +36,66 @@ if (typeof Chart === 'undefined') {
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{margin:0;color:var(--ink);background:linear-gradient(180deg,#071019,#0b0f14 30%,#0b0f14);
-       font:15px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-  header{position:sticky;top:0;z-index:5;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
-         background:#0b0f14cc;border-bottom:1px solid var(--line);backdrop-filter:saturate(180%) blur(10px)}
+  body{
+    margin:0;color:var(--ink);
+    background:linear-gradient(180deg,#071019,#0b0f14 30%,#0b0f14);
+    font:15px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased
+  }
+  header{
+    position:sticky;top:0;z-index:5;padding:14px 16px;
+    display:flex;align-items:center;justify-content:space-between;
+    background:#0b0f14cc;border-bottom:1px solid var(--line);
+    backdrop-filter:saturate(180%) blur(10px)
+  }
   h1{margin:0;font-size:18px;letter-spacing:.3px}
   .wrap{max-width:1000px;margin:0 auto;padding:16px;padding-bottom:100px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin:12px 0}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-  .row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 240px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row>*{flex:1 1 240px}
   .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);font-size:12px}
-  .muted{color:var(--muted)}.center{text-align:center}.big{font-size:28px;font-weight:600;margin:8px 0}
+  .muted{color:var(--muted)}
+  .center{text-align:center}
+  .big{font-size:28px;font-weight:600;margin:8px 0}
   label{display:flex;flex-direction:column;gap:6px;margin:6px 0;color:var(--muted);font-size:13px}
   input,select,textarea{background:var(--surface);border:1px solid #223146;color:var(--ink);padding:10px;border-radius:12px;outline:none}
   input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px #5bbcff33}
   button,.btn{appearance:none;background:#123048;border:1px solid #244e72;color:var(--ink);padding:10px 12px;border-radius:12px;cursor:pointer}
-  .btn.primary{background:#0f2740;border-color:#285a85}.btn.ghost{background:transparent;border-color:#223146}
-  .btn.good{border-color:#1b6f52}.btn.warn{border-color:#6d530f}
-  .list{list-style:none;padding:0;margin:0}.list li{padding:10px;border-bottom:1px solid var(--line)}
-  table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left} th{color:var(--muted);font-weight:600}
-  canvas{max-width:100%;height:320px}
-  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:9;display:flex;gap:8px;justify-content:space-around;padding:10px 12px;
-           padding-bottom:calc(10px + env(safe-area-inset-bottom));background:#0b0f14cc;border-top:1px solid var(--line);backdrop-filter:saturate(180%) blur(10px)}
+  .btn.primary{background:#0f2740;border-color:#285a85}
+  .btn.ghost{background:transparent;border-color:#223146}
+  .btn.good{border-color:#1b6f52}
+  .btn.warn{border-color:#6d530f}
+  .list{list-style:none;padding:0;margin:0}
+  .list li{padding:10px;border-bottom:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--muted);font-weight:600}
+
+  /* Fixed-height wrappers for charts to prevent infinite growth */
+  .chart-box, .chart-pie { position: relative; height: 320px; }
+  canvas { display:block; width:100% !important; height:100% !important; }
+
+  /* Bottom tab bar */
+  nav.tabs{
+    position:fixed;left:0;right:0;bottom:0;z-index:9;
+    display:flex;gap:8px;justify-content:space-around;padding:10px 12px;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    background:#0b0f14cc;border-top:1px solid var(--line);
+    backdrop-filter:saturate(180%) blur(10px)
+  }
   nav.tabs button{flex:1;background:var(--surface);border:1px solid #223146;border-radius:12px;padding:10px}
   nav.tabs button[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 2px #5bbcff22}
-  section.view{display:none} section.view.active{display:block}
+  section.view{display:none}
+  section.view.active{display:block}
+
+  /* Modal */
   .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0008;z-index:20}
   .modal.active{display:flex}
   .modal .panel{width:min(700px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
   .modal .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+
+  /* Touch action for modern browsers */
   a,area,button,input,label,select,summary,textarea,[tabindex]{touch-action:manipulation}
 </style>
 </head>
@@ -99,13 +130,19 @@ if (typeof Chart === 'undefined') {
 
       <div class="card">
         <h3 style="margin:6px 0">Sales</h3>
-        <canvas id="salesChart" aria-label="Sales over time"></canvas>
+        <div class="chart-box">
+          <canvas id="salesChart" aria-label="Sales over time"></canvas>
+        </div>
       </div>
 
       <div class="card">
         <h3 style="margin:6px 0">Expenses</h3>
         <div class="row">
-          <div style="flex:2 1 300px"><canvas id="expenseChart" aria-label="Expenses by category"></canvas></div>
+          <div style="flex:2 1 300px">
+            <div class="chart-pie">
+              <canvas id="expenseChart" aria-label="Expenses by category"></canvas>
+            </div>
+          </div>
           <div style="flex:1 1 240px">
             <ul class="list" id="expenseList"></ul>
           </div>
@@ -327,7 +364,7 @@ function renderInventory(){
 $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
 
-/* ===== Expenses (list + pie data) ===== */
+/* ===== Expenses ===== */
 function renderExpenses(){
   const ex=store.get('expenses',[]);
   $('#expenseLog').innerHTML = ex.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
@@ -374,35 +411,29 @@ function groupSales(period){
     sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number(s.total||0)}); data=map; }
   return {labels,data};
 }
+
 function renderSalesChart(){
-  const el = $('#salesChart'); if(!el) return;
-  const hasChart = typeof Chart !== 'undefined';
-  const { labels, data } = groupSales($('#periodSelect').value);
+  const el=$('#salesChart'); if(!el) return;
+  const hasChart=typeof Chart!=='undefined';
+  const {labels,data}=groupSales($('#periodSelect').value);
   if(!hasChart){ console.warn('Chart.js not loaded; skipping sales chart'); return; }
 
-  // Destroy previous instance to avoid duplicates
   if(window.__charts && window.__charts.sales){ window.__charts.sales.destroy(); }
 
-  const ctx = el.getContext('2d');
-  window.__charts = window.__charts || {};
-  window.__charts.sales = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Sales', data }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: {
-          beginAtZero: true,
-          min: 0,
-          max: 1000,      // <<< hard cap
-          ticks: { stepSize: 100 }
-        }
-      }
+  const ctx=el.getContext('2d');
+  window.__charts=window.__charts||{};
+  window.__charts.sales=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{label:'Sales',data}]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,  // use the wrapper’s fixed height
+      resizeDelay:200,            // avoid resize thrash
+      animation:false,
+      scales:{ y:{ beginAtZero:true, min:0, max:1000, ticks:{ stepSize:100 } } }
     }
   });
 }
-
 $('#periodSelect').addEventListener('change',()=>safe(renderSalesChart));
 
 function renderExpensePie(){
@@ -416,11 +447,14 @@ function renderExpensePie(){
   if(window.__charts && window.__charts.expense){ window.__charts.expense.destroy(); }
   const ctx=el.getContext('2d');
   window.__charts=window.__charts||{};
-  window.__charts.expense=new Chart(ctx,{type:'pie',data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1])}]},
-    options:{responsive:true,maintainAspectRatio:false}});
+  window.__charts.expense=new Chart(ctx,{
+    type:'pie',
+    data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1])}]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
 }
 
-/* ===== Stores Performance (FIX for missing function) ===== */
+/* ===== Stores Performance (present to avoid missing fn) ===== */
 function renderStoresPerf(){
   const items = store.get('items', []);
   const sales = store.get('sales', []);
@@ -499,16 +533,12 @@ function tryRenderAll(){ safe(renderTotalSales); safe(()=>renderSalesChart()); s
 window.addEventListener('load', tryRenderAll);
 </script>
 
-<!-- PWA: register your service worker -->
+<!-- PWA: register your service worker (cache-busted URL) -->
 <script>
 if ('serviceWorker' in navigator) {
-  // Cache-bust the SW file so GitHub Pages/CDN can’t serve an old copy
   navigator.serviceWorker.register('sw.js?v=tt-v8-2025-08-16a').catch(()=>{});
 }
 </script>
-</body>
-</html>
-
 </body>
 </html>
 

@@ -413,27 +413,51 @@ function groupSales(period){
 }
 
 function renderSalesChart(){
-  const el=$('#salesChart'); if(!el) return;
-  const hasChart=typeof Chart!=='undefined';
-  const {labels,data}=groupSales($('#periodSelect').value);
-  if(!hasChart){ console.warn('Chart.js not loaded; skipping sales chart'); return; }
+  const el = $('#salesChart'); 
+  if (!el) return;
 
-  if(window.__charts && window.__charts.sales){ window.__charts.sales.destroy(); }
+  const hasChart = typeof Chart !== 'undefined';
+  const { labels, data } = groupSales($('#periodSelect').value);
+  if (!hasChart){ 
+    console.warn('Chart.js not loaded; skipping sales chart'); 
+    return; 
+  }
 
-  const ctx=el.getContext('2d');
-  window.__charts=window.__charts||{};
-  window.__charts.sales=new Chart(ctx,{
-    type:'bar',
-    data:{labels,datasets:[{label:'Sales',data}]},
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,  // use the wrapper’s fixed height
-      resizeDelay:200,            // avoid resize thrash
-      animation:false,
-      scales:{ y:{ beginAtZero:true, min:0, max:1000, ticks:{ stepSize:100 } } }
+  if (window.__charts && window.__charts.sales){ 
+    window.__charts.sales.destroy(); 
+  }
+
+  const ctx = el.getContext('2d');
+  window.__charts = window.__charts || {};
+  window.__charts.sales = new Chart(ctx, {
+    type: 'bar',
+    data: { 
+      labels, 
+      datasets: [{ label: 'Sales', data }] 
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,  // use the wrapper’s fixed height
+      resizeDelay: 200,            // avoid resize thrash
+      animation: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: 1000,
+          ticks: {
+            stepSize: 500,
+            callback: function(value) {
+              // Only show 0, 500, 1000
+              return (value === 0 || value === 500 || value === 1000) ? value : '';
+            }
+          }
+        }
+      }
     }
   });
 }
+
 $('#periodSelect').addEventListener('change',()=>safe(renderSalesChart));
 
 function renderExpensePie(){

@@ -259,33 +259,111 @@ if (typeof Chart === 'undefined') {
   </div>
 
 <script>
-// --- safe storage helpers (put these at the top of your sync script) ---
-function readArr(key){
-  try{
-    const v = JSON.parse(localStorage.getItem(key) ?? '[]');
+// ===== Core utilities (safe to add; guards avoid collisions) =====
+window.$  = window.$  || (sel => document.querySelector(sel));
+window.$$ = window.$$ || (sel => Array.from(document.querySelectorAll(sel)));
+
+window.todayISO = window.todayISO || function todayISO() {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  return d.toISOString().slice(0,10);
+};
+
+window.money = window.money || function money(n) {
+  const v = Number(n || 0);
+  return (v < 0 ? '- $' + Math.abs(v).toFixed(2) : '$' + v.toFixed(2));
+};
+
+window.toast = window.toast || function toast(msg) {
+  try {
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:8px 12px;border-radius:8px;z-index:9999;opacity:.95';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => (t.style.display = 'none'), 2000);
+  } catch {}
+};
+
+// Read an array from localStorage safely
+function readArrLS(key) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || '[]');
     return Array.isArray(v) ? v : [];
-  }catch{ return []; }
+  } catch { return []; }
 }
-function writeArr(key, arr){
-  localStorage.setItem(key, JSON.stringify(Array.isArray(arr) ? arr : []));
+function uniqBy(arr, keyFn) {
+  const seen = new Set();
+  const out = [];
+  for (const x of arr) {
+    const k = keyFn(x);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(x);
+  }
+  return out;
 }
 
-const keySale = r => [r.notes, r.date, r.price].join('|');
-const keyExp  = r => [r.notes, r.date, r.cost].join('|');
+// Map backend tt-sales/tt-expenses into the shapes your UI expects
+const mapTTSale = s => ({
+  id: s.id || ('s_' + (s.orderId || '')),
+  title: s.item || s.title || 'eBay order',
+  date: (s.date || '').slice(0,10),
+  price: Number(s.price ?? s.amount ?? 0),
+  store: s.store || 'eBay',
+  notes: s.notes || '',
+  qty: s.qty ?? 1,
+  category: s.category || 'Online'
+});
+const mapTTExpense = e => ({
+  id: e.id || ('e_' + (e.notes || '')),
+  name: e.item || e.name || e.category || 'Expense',
+  category: e.category || 'Other',
+  amount: Number(e.cost ?? e.amount ?? 0),
+  notes: e.notes || '',
+  date: (e.date || '').slice(0,10)
+});
 
-function mergeIntoLocalStorage(sales, expenses) {
-  const existingSales = readArr('tt-sales');
-  const existingExp   = readArr('tt-expenses');
+// Storage wrapper that merges manual entries with synced ones
+window.store = window.store || {
+  get(key, def = []) {
+    try {
+      const raw = localStorage.getItem(key);
+      const val = raw ? JSON.parse(raw) : def;
+      let out = Array.isArray(val) ? val : def;
 
-  const seenS = new Set(existingSales.map(keySale));
-  const seenE = new Set(existingExp.map(keyExp));
+      if (key === 'sales') {
+        const synced = readArrLS('tt-sales').map(mapTTSale);
+        out = uniqBy(out.concat(synced), x => [x.title, x.date, x.price].join('|'));
+      }
+      if (key === 'expenses') {
+        const synced = readArrLS('tt-expenses').map(mapTTExpense);
+        out = uniqBy(out.concat(synced), x => [x.name, x.date, x.amount].join('|'));
+      }
+      return out;
+    } catch { return def; }
+  },
+  set(key, val) { localStorage.setItem(key, JSON.stringify(val)); },
+  all() {
+    return {
+      items: this.get('items', []),
+      stores: this.get('stores', []),
+      sales: this.get('sales', []),
+      expenses: this.get('expenses', [])
+    };
+  }
+};
 
-  const freshSales = (Array.isArray(sales) ? sales : []).filter(r => !seenS.has(keySale(r)));
-  const freshExp   = (Array.isArray(expenses) ? expenses : []).filter(r => !seenE.has(keyExp(r)));
-
-  if (freshSales.length) writeArr('tt-sales', existingSales.concat(freshSales));
-  if (freshExp.length)   writeArr('tt-expenses', existingExp.concat(freshExp));
-}
+window.tryRenderAll = window.tryRenderAll || function tryRenderAll() {
+  if (typeof renderSalesChart === 'function') renderSalesChart();
+  if (typeof renderSalesTable === 'function') renderSalesTable();
+  if (typeof renderInventory === 'function') renderInventory();
+  if (typeof renderExpenses === 'function') renderExpenses();
+};
 
 /* ===== Tabs ===== */
 function activateView(id){ $$('.view').forEach(v=>v.classList.remove('active')); $('#'+id).classList.add('active');
@@ -578,23 +656,27 @@ window.addEventListener('load', tryRenderAll);
 const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
 
 /* --------------- UTILITIES --------------- */
+function readArr(key){
+  try{
+    const v = JSON.parse(localStorage.getItem(key) ?? '[]');
+    return Array.isArray(v) ? v : [];
+  }catch{ return []; }
+}
+function writeArr(key, arr){
+  localStorage.setItem(key, JSON.stringify(Array.isArray(arr) ? arr : []));
+}
 const keySale = r => [r.notes, r.date, r.price].join('|');
 const keyExp  = r => [r.notes, r.date, r.cost].join('|');
-
 function mergeIntoLocalStorage(sales, expenses) {
-  const existingSales = JSON.parse(localStorage.getItem('tt-sales') || '[]').length;
-  const existingExp   = JSON.parse(localStorage.getItem('tt-expenses') || '[]');
-
+  const existingSales = readArr('tt-sales');
+  const existingExp   = readArr('tt-expenses');
   const seenS = new Set(existingSales.map(keySale));
   const seenE = new Set(existingExp.map(keyExp));
-
-  const freshSales = sales.filter(r => !seenS.has(keySale(r)));
-  const freshExp   = expenses.filter(r => !seenE.has(keyExp(r)));
-
-  if (freshSales.length) localStorage.setItem('tt-sales', JSON.stringify(existingSales.concat(freshSales)));
-  if (freshExp.length)   localStorage.setItem('tt-expenses', JSON.stringify(existingExp.concat(freshExp)));
+  const freshSales = (Array.isArray(sales) ? sales : []).filter(r => !seenS.has(keySale(r)));
+  const freshExp   = (Array.isArray(expenses) ? expenses : []).filter(r => !seenE.has(keyExp(r)));
+  if (freshSales.length) writeArr('tt-sales', existingSales.concat(freshSales));
+  if (freshExp.length)   writeArr('tt-expenses', existingExp.concat(freshExp));
 }
-
 function splitLedger(ledger) {
   const sales = (ledger || [])
     .filter(x => x.direction === 'CREDIT' && x.kind === 'SALE')

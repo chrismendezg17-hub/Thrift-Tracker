@@ -557,6 +557,173 @@ function tryRenderAll(){ safe(renderTotalSales); safe(()=>renderSalesChart()); s
 window.addEventListener('load', tryRenderAll);
 </script>
 
+<script>
+/* --------------- CONFIG --------------- */
+const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
+
+/* --------------- UTILITIES --------------- */
+const keySale = r => [r.notes, r.date, r.price].join('|');
+const keyExp  = r => [r.notes, r.date, r.cost].join('|');
+
+function mergeIntoLocalStorage(sales, expenses) {
+  const existingSales = JSON.parse(localStorage.getItem('tt-sales') || '[]');
+  const existingExp   = JSON.parse(localStorage.getItem('tt-expenses') || '[]');
+
+  const seenS = new Set(existingSales.map(keySale));
+  const seenE = new Set(existingExp.map(keyExp));
+
+  const freshSales = sales.filter(r => !seenS.has(keySale(r)));
+  const freshExp   = expenses.filter(r => !seenE.has(keyExp(r)));
+
+  if (freshSales.length) localStorage.setItem('tt-sales', JSON.stringify(existingSales.concat(freshSales)));
+  if (freshExp.length)   localStorage.setItem('tt-expenses', JSON.stringify(existingExp.concat(freshExp)));
+}
+
+function splitLedger(ledger) {
+  const sales = (ledger || [])
+    .filter(x => x.direction === 'CREDIT' && x.kind === 'SALE')
+    .map(x => ({
+      date: String(x.date || '').slice(0,10),
+      store: 'eBay',
+      category: 'Online',
+      item: x.title || 'eBay order',
+      price: Number(x.amount || 0),
+      qty: 1,
+      notes: x.notes || (x.orderId ? `Order ${x.orderId}` : 'eBay sale')
+    }));
+
+  const expenses = (ledger || [])
+    .filter(x => x.direction === 'DEBIT' && ['FEE','SHIPPING_LABEL','TRANSFER','REFUND'].includes(x.kind))
+    .map(x => ({
+      date: String(x.date || '').slice(0,10),
+      vendor: 'eBay',
+      category: x.kind,
+      item: x.title || x.kind,
+      cost: Number(x.amount || 0),
+      notes: x.notes || ''
+    }));
+
+  return { sales, expenses };
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + url);
+  return res.json();
+}
+
+function rerenderIfAvailable() {
+  if (typeof renderSalesChart  === 'function') renderSalesChart();
+  if (typeof renderSalesTable  === 'function') renderSalesTable();
+  if (typeof renderExpenses    === 'function') renderExpenses();
+}
+
+/* --------------- SYNC FUNCTIONS --------------- */
+async function pullCombinedOrOrders() {
+  try {
+    // Prefer combined (sales + fees/labels/etc.)
+    const ledger = await fetchJSON(BACKEND_URL + '/combined');
+    const { sales, expenses } = splitLedger(ledger);
+    mergeIntoLocalStorage(sales, expenses);
+  } catch (e) {
+    // Fallback: orders only (if finances scope not enabled yet)
+    try {
+      const orders = await fetchJSON(BACKEND_URL + '/orders');
+      const sales = (orders || []).map(o => ({
+        date: String(o.creationDate || '').slice(0,10),
+        store: 'eBay',
+        category: 'Online',
+        item: (o.lineItems || []).map(li => `${li.title} x${li.quantity || 1}`).join(' | ') || 'eBay order',
+        price: Number(o.pricingSummary?.total?.value || o.orderTotal?.value || 0),
+        qty: 1,
+        notes: `Order ${o.orderId || ''}`.trim()
+      }));
+      mergeIntoLocalStorage(sales, []);
+    } catch (e2) {
+      console.warn('Both /combined and /orders failed:', e, e2);
+    }
+  }
+  rerenderIfAvailable();
+}
+
+async function syncNow() {
+  try {
+    await fetchJSON(BACKEND_URL + '/sync-now');
+  } catch (e) {
+    // If /sync-now isn't available for any reason, just ignore and try pulling.
+  }
+  await pullCombinedOrOrders();
+}
+
+async function backfillFrom(dateStr /* YYYY-MM-DD */) {
+  // If your worker has /sync-from, prefer that:
+  try {
+    const url = new URL(BACKEND_URL + '/sync-from');
+    url.searchParams.set('date', dateStr);
+    const res = await fetch(url, { cache: 'no-store' });
+    if (res.ok) {
+      await pullCombinedOrOrders();
+      return;
+    }
+  } catch (_) {} // fall through to days-based backfill
+
+  // Fallback: /sync-backfill?days=...
+  const start = new Date(dateStr + 'T00:00:00Z').getTime();
+  const now   = Date.now();
+  const days  = Math.max(1, Math.ceil((now - start) / 86400000));
+  try {
+    await fetchJSON(BACKEND_URL + '/sync-backfill?days=' + days);
+  } catch (e) {
+    console.warn('sync-backfill failed:', e);
+  }
+  await pullCombinedOrOrders();
+}
+
+/* --------------- SMALL UI (optional) --------------- */
+function injectEbayControls() {
+  // Skip if already injected
+  if (document.getElementById('ebay-sync-toolbar')) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'ebay-sync-toolbar';
+  bar.style.cssText = 'position:relative;margin:12px 0;padding:8px;border:1px solid #ddd;border-radius:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
+
+  const title = document.createElement('strong');
+  title.textContent = 'eBay Sync';
+  title.style.marginRight = '8px';
+  bar.appendChild(title);
+
+  const connect = document.createElement('a');
+  connect.href = BACKEND_URL + '/auth/start';
+  connect.target = '_blank';
+  connect.rel = 'noopener';
+  connect.textContent = 'Connect eBay';
+  connect.style.cssText = 'text-decoration:none;border:1px solid #ccc;border-radius:10px;padding:6px 10px;';
+  bar.appendChild(connect);
+
+  const btnSync = document.createElement('button');
+  btnSync.textContent = 'Sync Now';
+  btnSync.onclick = syncNow;
+  btnSync.style.cssText = 'border:1px solid #ccc;border-radius:10px;padding:6px 10px;background:#f7f7f7;cursor:pointer;';
+  bar.appendChild(btnSync);
+
+  const btnBackfill = document.createElement('button');
+  btnBackfill.textContent = 'Backfill from Jan 1, 2025';
+  btnBackfill.onclick = () => backfillFrom('2025-01-01');
+  btnBackfill.style.cssText = 'border:1px solid #ccc;border-radius:10px;padding:6px 10px;background:#f7f7f7;cursor:pointer;';
+  bar.appendChild(btnBackfill);
+
+  // Insert at top of body (or wherever you like)
+  document.body.insertBefore(bar, document.body.firstChild);
+}
+
+/* --------------- BOOTSTRAP --------------- */
+document.addEventListener('DOMContentLoaded', async () => {
+  injectEbayControls();     // optional toolbar
+  await pullCombinedOrOrders(); // fetch and populate
+});
+</script>
+
 <!-- PWA: register your service worker (cache-busted URL) -->
 <script>
 if ('serviceWorker' in navigator) {

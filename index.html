@@ -886,8 +886,7 @@ function injectEbayControls() {
 
 /* --------------- BOOTSTRAP --------------- */
 document.addEventListener('DOMContentLoaded', async () => {
-  injectEbayControls();
-  await pullCombinedOrOrders();
+await pullCombinedOrOrders();
 
   // Auto-broaden the period if the selected range is empty
   try {

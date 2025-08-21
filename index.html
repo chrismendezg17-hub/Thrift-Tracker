@@ -848,7 +848,8 @@ function injectEbayControls() {
 
   const bar = document.createElement('div');
   bar.id = 'ebay-sync-toolbar';
-  bar.style.cssText = 'position:relative;margin:12px 0;padding:8px;border:1px solid #ddd;border-radius:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
+  // Use your theme vars for proper contrast
+  bar.style.cssText = 'position:relative;margin:12px 0;padding:8px;border:1px solid var(--line);border-radius:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface);color:var(--ink);';
 
   const title = document.createElement('strong');
   title.textContent = 'eBay Sync';
@@ -860,19 +861,23 @@ function injectEbayControls() {
   connect.target = '_blank';
   connect.rel = 'noopener';
   connect.textContent = 'Connect eBay';
-  connect.style.cssText = 'text-decoration:none;border:1px solid #ccc;border-radius:10px;padding:6px 10px;';
+  // Use your existing button styles instead of pale inline styles
+  connect.className = 'btn primary';
+  connect.style.cssText = '';
   bar.appendChild(connect);
 
   const btnSync = document.createElement('button');
   btnSync.textContent = 'Sync Now';
   btnSync.onclick = syncNow;
-  btnSync.style.cssText = 'border:1px solid #ccc;border-radius:10px;padding:6px 10px;background:#f7f7f7;cursor:pointer;';
+  btnSync.className = 'btn';
+  btnSync.style.cssText = '';
   bar.appendChild(btnSync);
 
   const btnBackfill = document.createElement('button');
   btnBackfill.textContent = 'Backfill from Jan 1, 2025';
   btnBackfill.onclick = () => backfillFrom('2025-01-01');
-  btnBackfill.style.cssText = 'border:1px solid #ccc;border-radius:10px;padding:6px 10px;background:#f7f7f7;cursor:pointer;';
+  btnBackfill.className = 'btn';
+  btnBackfill.style.cssText = '';
   bar.appendChild(btnBackfill);
 
   // Insert at top of body (or wherever you like)

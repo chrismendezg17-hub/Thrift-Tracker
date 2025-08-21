@@ -259,17 +259,33 @@ if (typeof Chart === 'undefined') {
   </div>
 
 <script>
-/* ===== Helpers ===== */
-const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const store={ get:(k,d=null)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},
-  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)), del:(k)=>localStorage.removeItem(k),
-  all:()=>({items:store.get('items',[]),expenses:store.get('expenses',[]),stores:store.get('stores',[]),
-            sales:store.get('sales',[]),settings:store.get('settings',{home:{lat:null,lng:null}})}) };
-const money=n=>'$'+(Number(n||0)).toFixed(2), todayISO=()=>new Date().toISOString().slice(0,10);
-function toast(msg,kind){let el=$('#toast'); if(!el){el=document.createElement('div');el.id='toast';document.body.appendChild(el)}
-  el.textContent=msg; el.style.cssText=`position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
-  background:${kind==='bad'?'#3a1016':'#0f2740'};border:1px solid #244e72;padding:10px 14px;border-radius:12px;z-index:1000`;
-  clearTimeout(el._t); el._t=setTimeout(()=>el.remove(),2200)}
+// --- safe storage helpers (put these at the top of your sync script) ---
+function readArr(key){
+  try{
+    const v = JSON.parse(localStorage.getItem(key) ?? '[]');
+    return Array.isArray(v) ? v : [];
+  }catch{ return []; }
+}
+function writeArr(key, arr){
+  localStorage.setItem(key, JSON.stringify(Array.isArray(arr) ? arr : []));
+}
+
+const keySale = r => [r.notes, r.date, r.price].join('|');
+const keyExp  = r => [r.notes, r.date, r.cost].join('|');
+
+function mergeIntoLocalStorage(sales, expenses) {
+  const existingSales = readArr('tt-sales');
+  const existingExp   = readArr('tt-expenses');
+
+  const seenS = new Set(existingSales.map(keySale));
+  const seenE = new Set(existingExp.map(keyExp));
+
+  const freshSales = (Array.isArray(sales) ? sales : []).filter(r => !seenS.has(keySale(r)));
+  const freshExp   = (Array.isArray(expenses) ? expenses : []).filter(r => !seenE.has(keyExp(r)));
+
+  if (freshSales.length) writeArr('tt-sales', existingSales.concat(freshSales));
+  if (freshExp.length)   writeArr('tt-expenses', existingExp.concat(freshExp));
+}
 
 /* ===== Tabs ===== */
 function activateView(id){ $$('.view').forEach(v=>v.classList.remove('active')); $('#'+id).classList.add('active');

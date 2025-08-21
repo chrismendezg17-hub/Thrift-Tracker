@@ -497,23 +497,25 @@ function sumSalesTotal(){
 }
 function renderTotalSales(){ $('#totalSales').textContent = money(sumSalesTotal()) }
 
+function parseLocalISO(d){ return new Date((d || '') + 'T00:00:00'); }
+  
 function groupSales(period){
   const sales=store.get('sales',[]), now=new Date(), fmt=d=>d.toISOString().slice(0,10);
   const startOfWeek=d=>{const t=new Date(d); const w=(t.getDay()+6)%7; t.setDate(t.getDate()-w); t.setHours(0,0,0,0); return t;};
   const startOfMonth=d=>new Date(d.getFullYear(), d.getMonth(), 1);
   let labels=[], data=[];
   if(period==='today'){ labels=[...Array(24)].map((_,h)=>h+":00"); const map=new Array(24).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(fmt(dt)===fmt(now)) map[dt.getHours()]+=Number((s.total ?? s.price) || 0)
+    sales.forEach(s=>{if(!s.date)return; const dt = parseLocalISO(s.date); if(fmt(dt)===fmt(now)) map[dt.getHours()]+=Number((s.total ?? s.price) || 0)
 }); data=map; }
   else if(period==='week'){ const start=startOfWeek(now); labels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const map=new Array(7).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start){const i=(dt.getDay()+6)%7; map[i]+=Number((s.total ?? s.price) || 0)
+    sales.forEach(s=>{if(!s.date)return; const dt = parseLocalISO(s.date); if(dt>=start){const i=(dt.getDay()+6)%7; map[i]+=Number((s.total ?? s.price) || 0)
 }}); data=map; }
   else if(period==='month'){ const start=startOfMonth(now), days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
     labels=[...Array(days)].map((_,i)=>String(i+1)); const map=new Array(days).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start&&dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number((s.total ?? s.price) || 0)
+    sales.forEach(s=>{if(!s.date)return; const dt = parseLocalISO(s.date); if(dt>=start&&dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number((s.total ?? s.price) || 0)
 }); data=map; }
   else { labels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const map=new Array(12).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number((s.total ?? s.price) || 0)
+    sales.forEach(s=>{if(!s.date)return; const dt = parseLocalISO(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number((s.total ?? s.price) || 0)
 }); data=map; }
   return {labels,data};
 }
@@ -524,6 +526,9 @@ function renderSalesChart(){
 
   const hasChart = typeof Chart !== 'undefined';
   const { labels, data } = groupSales($('#periodSelect').value);
+  const maxVal = Math.max(0, ...data);
+  const yMax = Math.max(1000, Math.ceil(maxVal / 500) * 500);
+
   if (!hasChart){ 
     console.warn('Chart.js not loaded; skipping sales chart'); 
     return; 
@@ -547,15 +552,13 @@ function renderSalesChart(){
       resizeDelay: 200,            // avoid resize thrash
       animation: false,
       scales: {
-        y: {
-          beginAtZero: true,
-          min: 0,
-          max: 1000,
-          ticks: {
-            stepSize: 500,
-            callback: function(value) {
-              // Only show 0, 500, 1000
-              return (value === 0 || value === 500 || value === 1000) ? value : '';
+      y: {
+      beginAtZero: true,
+      min: 0,
+      suggestedMax: yMax,   // let Chart.js scale up if needed
+      ticks: {
+      stepSize: 500,
+      callback: (value) => (value === 0 || value === 500 || value === 1000 ? value : '')
             }
           }
         }

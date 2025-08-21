@@ -566,7 +566,7 @@ const keySale = r => [r.notes, r.date, r.price].join('|');
 const keyExp  = r => [r.notes, r.date, r.cost].join('|');
 
 function mergeIntoLocalStorage(sales, expenses) {
-  const existingSales = JSON.parse(localStorage.getItem('tt-sales') || '[]');
+  const existingSales = JSON.parse(localStorage.getItem('tt-sales') || '[]').length;
   const existingExp   = JSON.parse(localStorage.getItem('tt-expenses') || '[]');
 
   const seenS = new Set(existingSales.map(keySale));

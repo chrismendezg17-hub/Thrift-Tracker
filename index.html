@@ -309,16 +309,21 @@ function uniqBy(arr, keyFn) {
 }
 
 // Map backend tt-sales/tt-expenses into the shapes your UI expects
-const mapTTSale = s => ({
-  id: s.id || ('s_' + (s.orderId || '')),
-  title: s.item || s.title || 'eBay order',
-  date: (s.date || '').slice(0,10),
-  price: Number(s.price ?? s.amount ?? 0),
-  store: s.store || 'eBay',
-  notes: s.notes || '',
-  qty: s.qty ?? 1,
-  category: s.category || 'Online'
-});
+const mapTTSale = s => {
+  const amt = Number(s.price ?? s.amount ?? 0);
+  return {
+    id: s.id || ('s_' + (s.orderId || '')),
+    title: s.item || s.title || 'eBay order',
+    date: (s.date || '').slice(0,10),
+    price: amt,
+    total: amt,                 // <-- add total for compatibility
+    store: s.store || 'eBay',
+    notes: s.notes || '',
+    qty: s.qty ?? 1,
+    category: s.category || 'Online'
+  };
+};
+
 const mapTTExpense = e => ({
   id: e.id || ('e_' + (e.notes || '')),
   name: e.item || e.name || e.category || 'Expense',
@@ -348,6 +353,7 @@ window.store = window.store || {
     } catch { return def; }
   },
   set(key, val) { localStorage.setItem(key, JSON.stringify(val)); },
+  del(key) { localStorage.removeItem(key); },
   all() {
     return {
       items: this.get('items', []),
@@ -486,7 +492,9 @@ function renderRoutes(){
 $('#btnOrderRoute').addEventListener('click',renderRoutes);
 
 /* ===== Dashboard ===== */
-function sumSalesTotal(){return store.get('sales',[]).reduce((s,x)=>s+Number(x.total||0),0)}
+function sumSalesTotal(){
+  return store.get('sales',[]).reduce((s,x)=>s+Number((x.total ?? x.price) || 0),0);
+}
 function renderTotalSales(){ $('#totalSales').textContent = money(sumSalesTotal()) }
 
 function groupSales(period){
@@ -495,14 +503,18 @@ function groupSales(period){
   const startOfMonth=d=>new Date(d.getFullYear(), d.getMonth(), 1);
   let labels=[], data=[];
   if(period==='today'){ labels=[...Array(24)].map((_,h)=>h+":00"); const map=new Array(24).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(fmt(dt)===fmt(now)) map[dt.getHours()]+=Number(s.total||0)}); data=map; }
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(fmt(dt)===fmt(now)) map[dt.getHours()]+=Number((s.total ?? s.price) || 0)
+}); data=map; }
   else if(period==='week'){ const start=startOfWeek(now); labels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const map=new Array(7).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start){const i=(dt.getDay()+6)%7; map[i]+=Number(s.total||0)}}); data=map; }
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start){const i=(dt.getDay()+6)%7; map[i]+=Number((s.total ?? s.price) || 0)
+}}); data=map; }
   else if(period==='month'){ const start=startOfMonth(now), days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
     labels=[...Array(days)].map((_,i)=>String(i+1)); const map=new Array(days).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start&&dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number(s.total||0)}); data=map; }
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start&&dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number((s.total ?? s.price) || 0)
+}); data=map; }
   else { labels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const map=new Array(12).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number(s.total||0)}); data=map; }
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number((s.total ?? s.price) || 0)
+}); data=map; }
   return {labels,data};
 }
 
@@ -579,7 +591,7 @@ function renderStoresPerf(){
   const soldByTitle = {};
   sales.forEach(s=>{
     const t = (s.title||'').toLowerCase().trim();
-    soldByTitle[t] = (soldByTitle[t]||0) + Number(s.total||0);
+    soldByTitle[t] = (soldByTitle[t]||0) + Number((s.total ?? s.price) || 0);
   });
   const perf = {};
   items.forEach(it=>{
@@ -817,8 +829,24 @@ function injectEbayControls() {
 
 /* --------------- BOOTSTRAP --------------- */
 document.addEventListener('DOMContentLoaded', async () => {
-  injectEbayControls();     // optional toolbar
-  await pullCombinedOrOrders(); // fetch and populate
+  injectEbayControls();
+  await pullCombinedOrOrders();
+
+  // Auto-broaden the period if the selected range is empty
+  try {
+    const sel = document.querySelector('#periodSelect');
+    if (sel && typeof groupSales === 'function') {
+      const gs = groupSales(sel.value);
+      const has = gs && Array.isArray(gs.data) && gs.data.some(n => Number(n) > 0);
+      if (!has) {
+        sel.value = 'year';               // switch to "This Year"
+        sel.dispatchEvent(new Event('change'));
+      }
+    }
+  } catch {}
+
+  // (optional) re-render, but pullCombinedOrOrders already calls rerenderIfAvailable()
+  rerenderIfAvailable();
 });
 </script>
 

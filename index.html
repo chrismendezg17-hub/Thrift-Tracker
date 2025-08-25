@@ -505,10 +505,10 @@ $('#invFilter').addEventListener('change',renderInventory);
 /* ===== Expenses (grouped, with refunds as negatives) ===== */
 function renderExpenses(){
   const ex = store.get('expenses',[]);
-  if (!Array.isArray(ex) || !ex.length) {
-    $('#expenseLog').innerHTML = '<li class="muted">No expenses yet.</li>';
-    return;
-  }
+  $('#expenseLog').innerHTML = ex.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    .map(e=>`<li><strong>${e.name}</strong> — ${money(e.amount)} <span class="muted">(${friendlyExpenseCategory(e.category)})</span><br>
+      <small class="muted">${e.date}${e.notes?' • '+e.notes:''}</small></li>`).join('');
+}
 
   // Group by category with totals (net = positives - refunds)
   const posBy = {}, negBy = {};
@@ -619,18 +619,46 @@ function renderSalesChart(){
 }
 $('#periodSelect').addEventListener('change',()=>{ try{ renderSalesChart(); }catch(e){} });
 
-function renderExpensePie(){
-  const el=$('#expenseChart'); if(!el) return;
-  const hasChart=typeof Chart!=='undefined';
-  const ex=store.get('expenses',[]);
+function friendlyExpenseCategory(cat){
+  const c = String(cat || '').trim();
+  const upper = c.toUpperCase().replace(/\s+/g,'_');
+  if (upper === 'FEE' || /^E-?BAY FEES?$/i.test(c)) return 'eBay Fees';
+  if (upper === 'SHIPPING_LABEL') return 'Shipping Labels';
+  if (upper === 'REFUND') return 'Refunds';
+  if (upper === 'TRANSFER') return 'Transfers';
+  if (!c) return 'Other';
+  // keep your manual categories as-is (Cost of Goods, Shipping, Supplies, etc.)
+  return c;
+}
 
-  // Split positives (money out) and negatives (refunds/credits)
-  const posBy={}, negBy={}; let totalCredits=0;
-  for(const e of ex){
-    const cat=e.category||'Other'; const v=Number(e.amount||0);
-    if(v>0){ posBy[cat]=(posBy[cat]||0)+v; }
-    else if(v<0){ const a=-v; negBy[cat]=(negBy[cat]||0)+a; totalCredits+=a; }
-  }
+function renderExpensePie(){
+  const el = $('#expenseChart'); if (!el) return;
+  const hasChart = typeof Chart !== 'undefined';
+
+  // group by friendly category
+  const totalsByCat = {};
+  const ex = store.get('expenses', []);
+  ex.forEach(e => {
+    const k = friendlyExpenseCategory(e.category);
+    totalsByCat[k] = (totalsByCat[k] || 0) + Number(e.amount || 0);
+  });
+
+  const entries = Object.entries(totalsByCat).sort((a,b) => b[1]-a[1]);
+  $('#expenseList').innerHTML =
+    entries.map(([k,v])=>`<li><strong>${k}</strong> — ${money(v)}</li>`).join('') ||
+    '<li class="muted">No expenses yet.</li>';
+
+  if (!hasChart){ console.warn('Chart.js not loaded; skipping expense chart'); return; }
+  if (window.__charts && window.__charts.expense){ window.__charts.expense.destroy(); }
+
+  const ctx = el.getContext('2d');
+  window.__charts = window.__charts || {};
+  window.__charts.expense = new Chart(ctx, {
+    type: 'pie',
+    data: { labels: entries.map(e=>e[0]), datasets: [{ data: entries.map(e=>e[1]) }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+}
 
   const pieEntries=Object.entries(posBy).sort((a,b)=>b[1]-a[1]);
 

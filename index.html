@@ -518,21 +518,22 @@ function renderRoutes(){
       <small class="muted">${s.location||''}</small><br>${maps?`<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>`:''}</li>`;}).join('')
     || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
-/* ===== Bulk Import Stores (Apple Maps URLs or CSV) ===== */
+/* ===== Bulk Import Stores (Apple Maps URLs or CSV, with auto-geocode) ===== */
 
-// Reuse CSV parser you already have; if not present, tiny fallback:
+// Reuse CSV parser if present; tiny fallback otherwise
 function parseCsvLoose(text){
   if (typeof parseCsv === 'function') return parseCsv(text);
   const lines = text.replace(/\r/g,'').split('\n').filter(l=>l.trim());
   if (!lines.length) return [];
   const headers = lines[0].split(',').map(h=>h.trim());
   return lines.slice(1).map(l=>{
+    // very loose split (no quoted commas handling here)
     const cells = l.split(','); const o = {};
     headers.forEach((h,i)=>o[h]=cells[i]??''); return o;
   });
 }
 
-// Try to parse an Apple Maps URL: name (q/address) + ll=lat,lng
+// Apple Maps link parser (supports ll, sll, daddr)
 function parseAppleMapsUrl(line){
   try{
     const u = new URL(line.trim());
@@ -541,7 +542,7 @@ function parseAppleMapsUrl(line){
 
     const qName = p.get('q') || '';
     const addr  = p.get('address') || '';
-    const ll    = p.get('ll') || p.get('sll') || p.get('daddr') || ''; // <-- added daddr
+    const ll    = p.get('ll') || p.get('sll') || p.get('daddr') || '';
     let lat=null,lng=null;
     if (ll && ll.includes(',')) {
       const [a,b] = ll.split(',').map(Number);
@@ -550,6 +551,7 @@ function parseAppleMapsUrl(line){
 
     const name = decodeURIComponent(qName || addr || '').trim();
     const location = decodeURIComponent(addr).trim();
+
     return {
       id: 's_' + Math.random().toString(36).slice(2),
       name: name || '(Place)',
@@ -562,12 +564,9 @@ function parseAppleMapsUrl(line){
   }catch{ return null; }
 }
 
-// Parse CSV row into our store shape (header names flexible)
+// CSV row -> store shape
 function parseStoreRow(row){
-  const pick = (o, keys) => {
-    for (const k of keys) if (o[k]!=null && String(o[k]).trim()!=='') return String(o[k]).trim();
-    return '';
-  };
+  const pick = (o, keys) => { for (const k of keys) if (o[k]!=null && String(o[k]).trim()!=='') return String(o[k]).trim(); return ''; };
   const name = pick(row, ['name','store','title']);
   const location = pick(row, ['location','address','addr']);
   const open = pick(row, ['open','opens','start','open_time']);
@@ -589,36 +588,33 @@ function parseStoreRow(row){
   };
 }
 
-// Deduplicate by lat/lng if present (tight), else name+location (case-insensitive)
+// Deduplicate by geo if present, else by name+location (case-insensitive)
 function dedupeStores(arr, existing){
   const out = [];
-  const seenKey = new Set();
-
+  const seen = new Set();
   function key(s){
     if (Number.isFinite(s.lat) && Number.isFinite(s.lng)) {
       return `geo:${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
     }
     return `nl:${(s.name||'').toLowerCase().trim()}|${(s.location||'').toLowerCase().trim()}`;
   }
-
   const all = (existing||[]).concat(arr);
   for (const s of all) {
     const k = key(s);
-    if (seenKey.has(k)) continue;
-    seenKey.add(k);
+    if (seen.has(k)) continue;
+    seen.add(k);
     out.push(s);
   }
   return out;
 }
 
-// UI wiring
 (function initBulkImportStores(){
-  const modal = document.getElementById('modalImportStores');
+  const modal   = document.getElementById('modalImportStores');
   const openBtn = document.getElementById('btnBulkImportStores');
-  const closeBtn = document.getElementById('btnCloseImportStores');
-  const doBtn = document.getElementById('btnDoImportStores');
+  const closeBtn= document.getElementById('btnCloseImportStores');
+  const doBtn   = document.getElementById('btnDoImportStores');
   const prevBtn = document.getElementById('btnPreviewImportStores');
-  const input = document.getElementById('bulkStoresInput');
+  const input   = document.getElementById('bulkStoresInput');
   const preview = document.getElementById('bulkStoresPreview');
 
   if (!modal || !openBtn) return;
@@ -638,9 +634,8 @@ function dedupeStores(arr, existing){
       const rows = parseCsvLoose(text);
       parsed = rows.map(parseStoreRow);
     } else {
-      parsed = lines.map(l => parseAppleMapsUrl(l) || { __skip:true });
-      parsed = parsed.filter(o=>!o.__skip);
-      // If nothing parsed as Apple URLs, try CSV-by-guessing (no header)
+      parsed = lines.map(l => parseAppleMapsUrl(l) || { __skip:true }).filter(o=>!o.__skip);
+      // If nothing parsed as Apple URLs, try naive CSV without header
       if (!parsed.length && lines.some(l=>l.includes(','))) {
         const rows = lines.map(l=>{
           const [name='', location='', open='', close='', lat='', lng=''] = l.split(',');
@@ -654,12 +649,49 @@ function dedupeStores(arr, existing){
 
   prevBtn.addEventListener('click', ()=>{
     const arr = parseBulk(input.value);
-    preview.textContent = arr.length ? `Will import ${arr.length} stores.` : 'Nothing detected.';
+    const missing = arr.filter(s => !(Number.isFinite(s.lat) && Number.isFinite(s.lng)) && (s.name || s.location)).length;
+    const msg = arr.length
+      ? `Will import ${arr.length} store${arr.length===1?'':'s'}` + (missing ? ` • ${missing} will be geocoded` : '')
+      : 'Nothing detected.';
+    preview.textContent = msg;
   });
 
-  doBtn.addEventListener('click', ()=>{
+  async function geocodeMissing(arr){
+    const need = arr.filter(s => !(Number.isFinite(s.lat) && Number.isFinite(s.lng)) && (s.name || s.location));
+    if (!need.length) return arr;
+
+    try {
+      const res = await fetch(BACKEND_URL + '/geocode-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: need.map(s => ({ id: s.id, name: s.name || '', location: s.location || '' }))
+        })
+      });
+      if (!res.ok) throw new Error('geocode-batch HTTP ' + res.status);
+      const data = await res.json();
+      const map = new Map((data.results || []).map(r => [r.id, r]));
+
+      for (const s of arr) {
+        const r = map.get(s.id);
+        if (r && r.ok && Number.isFinite(r.lat) && Number.isFinite(r.lng)) {
+          s.lat = r.lat;
+          s.lng = r.lng;
+        }
+      }
+    } catch (e) {
+      console.warn('Geocoding failed, continuing without coords:', e);
+    }
+    return arr;
+  }
+
+  doBtn.addEventListener('click', async ()=>{
     const arr = parseBulk(input.value);
     if (!arr.length) { toast('Nothing to import','bad'); return; }
+
+    toast('Importing…');
+    await geocodeMissing(arr);
+
     const all = store.all();
     const merged = dedupeStores(arr, all.stores);
     store.set('stores', merged);

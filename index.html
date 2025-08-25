@@ -706,28 +706,57 @@ function mergeIntoLocalStorage(sales, expenses) {
   if (freshExp.length)   writeArr('tt-expenses', existingExp.concat(freshExp));
 }
 function splitLedger(ledger) {
+  const toNum = v => Number(v ?? 0);
+
+  // ---- Sales (unchanged) ----
   const sales = (ledger || [])
-    .filter(x => x.direction === 'CREDIT' && x.kind === 'SALE')
+    .filter(x => x.direction === 'CREDIT' && String(x.kind).toUpperCase() === 'SALE')
     .map(x => ({
       date: String(x.date || '').slice(0,10),
       store: 'eBay',
       category: 'Online',
       item: x.title || 'eBay order',
-      price: Number(x.amount || 0),
+      price: toNum(x.amount),
       qty: 1,
       notes: x.notes || (x.orderId ? `Order ${x.orderId}` : 'eBay sale')
     }));
 
+  // Helper: detect the $7.95 store subscription
+  function isStoreSubscription(x) {
+    const amt = toNum(x.amount);
+    const kind = String(x.kind || '').toUpperCase();
+    const title = String(x.title || '').toLowerCase();
+    return Math.abs(amt - 7.95) < 0.01 && (
+      kind === 'NON_SALE_CHARGE' ||
+      kind === 'FEE' ||
+      title.includes('non-sale charge') ||
+      title.includes('store subscription')
+    );
+  }
+
+  // ---- Expenses (include all DEBITs) ----
   const expenses = (ledger || [])
-    .filter(x => x.direction === 'DEBIT' && ['FEE','SHIPPING_LABEL','TRANSFER','REFUND'].includes(x.kind))
-    .map(x => ({
-      date: String(x.date || '').slice(0,10),
-      vendor: 'eBay',
-      category: x.kind,
-      item: x.title || x.kind,
-      cost: Number(x.amount || 0),
-      notes: x.notes || ''
-    }));
+    .filter(x => x.direction === 'DEBIT') // take any money-out entry
+    .map(x => {
+      const amt = toNum(x.amount);
+      let item = x.title || String(x.kind || 'Expense');
+      let category = x.kind || 'Other';
+
+      // Special case: rename the $7.95 non-sale charge, keep category as "Other"
+      if (isStoreSubscription(x)) {
+        item = 'eBay Store Subscription';
+        category = 'Other';
+      }
+
+      return {
+        date: String(x.date || '').slice(0,10),
+        vendor: 'eBay',
+        category,
+        item,
+        cost: amt,
+        notes: x.notes || ''
+      };
+    });
 
   return { sales, expenses };
 }

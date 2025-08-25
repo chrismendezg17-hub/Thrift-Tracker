@@ -95,25 +95,6 @@ if (typeof Chart === 'undefined') {
   .modal .panel{width:min(700px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
   .modal .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 
-  /* Sync toolbar */
-  #ebay-sync-toolbar{
-    background:var(--surface);
-    border:1px solid var(--line);
-    color:var(--ink);
-    border-radius:12px;
-  }
-  #ebay-sync-toolbar .tt-btn{
-    border:1px solid #2a3c54;
-    border-radius:10px;
-    padding:6px 10px;
-    background:#0f2740;
-    color:#e9f2ff;
-    cursor:pointer;
-  }
-  #ebay-sync-toolbar a.tt-btn{
-    display:inline-block;text-decoration:none;
-  }
-
   /* Touch action for modern browsers */
   a,area,button,input,label,select,summary,textarea,[tabindex]{touch-action:manipulation}
 </style>
@@ -130,8 +111,6 @@ if (typeof Chart === 'undefined') {
   <main class="wrap">
     <!-- HOME -->
     <section id="view-home" class="view active" role="tabpanel" aria-labelledby="tab-home">
-      <div id="ebay-toolbar-anchor"></div>
-
       <div class="card center">
         <div class="pill">Dashboard</div>
         <div class="big" id="totalSales">$0.00</div>
@@ -239,36 +218,6 @@ if (typeof Chart === 'undefined') {
         <ul class="list" id="expenseLog"></ul>
       </div>
     </section>
-
-    <!-- LEDGER -->
-    <section id="view-ledger" class="view" role="tabpanel" aria-labelledby="tab-ledger">
-      <div class="card">
-        <h2>Ledger</h2>
-        <div class="row">
-          <label>From <input type="date" id="lgFrom"></label>
-          <label>To <input type="date" id="lgTo"></label>
-          <label>Type
-            <select id="lgType">
-              <option value="ALL" selected>All</option>
-              <option value="CREDIT">Credits</option>
-              <option value="DEBIT">Debits</option>
-            </select>
-          </label>
-          <button class="btn" id="lgApply">Apply</button>
-        </div>
-        <div class="card" style="overflow:auto">
-          <table id="lgTable">
-            <thead>
-              <tr><th>Date</th><th>Direction</th><th>Category</th><th>Title</th><th class="right">Amount</th></tr>
-            </thead>
-            <tbody></tbody>
-            <tfoot>
-              <tr><td colspan="4"><strong>Net</strong></td><td class="right" id="lgNet">$0.00</td></tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    </section>
   </main>
 
   <!-- Bottom tabs -->
@@ -278,7 +227,6 @@ if (typeof Chart === 'undefined') {
     <button id="tab-inventory" role="tab" aria-controls="view-inventory">Inventory</button>
     <button id="tab-routes" role="tab" aria-controls="view-routes">Routes</button>
     <button id="tab-expenses" role="tab" aria-controls="view-expenses">Expenses</button>
-    <button id="tab-ledger" role="tab" aria-controls="view-ledger">Ledger</button>
   </nav>
 
   <!-- SETTINGS (with Use My Location) -->
@@ -305,13 +253,20 @@ if (typeof Chart === 'undefined') {
             <input type="file" id="ebayCsv" accept=".csv">
           </label>
           <small class="muted">We parse item title, sold price, and date to feed the dashboard.</small>
+
+          <!-- 🔽 Toolbar toggle -->
+          <label style="display:flex;align-items:center;gap:10px;margin-top:12px">
+            <input type="checkbox" id="showToolbar">
+            Show eBay Sync Toolbar (advanced)
+          </label>
+          <small class="muted">Keep off to auto-hide once connected. Turn on if you need manual Connect / Sync / Backfill.</small>
         </div>
       </div>
     </div>
   </div>
 
 <script>
-/* ===== Core utilities (safe to add; guards avoid collisions) ===== */
+// ===== Core utilities (safe to add; guards avoid collisions) =====
 window.$  = window.$  || (sel => document.querySelector(sel));
 window.$$ = window.$$ || (sel => Array.from(document.querySelectorAll(sel)));
 
@@ -368,13 +323,14 @@ const mapTTSale = s => {
     title: s.item || s.title || 'eBay order',
     date: (s.date || '').slice(0,10),
     price: amt,
-    total: amt, // compatibility with older code paths
+    total: amt,                 // keep compatibility with chart code
     store: s.store || 'eBay',
     notes: s.notes || '',
     qty: s.qty ?? 1,
     category: s.category || 'Online'
   };
 };
+
 const mapTTExpense = e => ({
   id: e.id || ('e_' + (e.notes || '')),
   name: e.item || e.name || e.category || 'Expense',
@@ -423,16 +379,9 @@ window.tryRenderAll = window.tryRenderAll || function tryRenderAll() {
 };
 
 /* ===== Tabs ===== */
-function activateView(id){
-  $$('.view').forEach(v=>v.classList.remove('active'));
-  $('#'+id).classList.add('active');
-  $$('nav.tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected','false'));
-  const tab = $(`[aria-controls="${id}"]`);
-  if (tab) tab.setAttribute('aria-selected','true');
-}
-$$('nav.tabs [role="tab"]').forEach(btn=>
-  btn.addEventListener('click',()=>activateView(btn.getAttribute('aria-controls')))
-);
+function activateView(id){ $$('.view').forEach(v=>v.classList.remove('active')); $('#'+id).classList.add('active');
+  $$('nav.tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected','false')); $(`[aria-controls="${id}"]`).setAttribute('aria-selected','true'); }
+$$('nav.tabs [role="tab"]').forEach(btn=>btn.addEventListener('click',()=>activateView(btn.getAttribute('aria-controls'))));
 
 /* ===== Quick Add ===== */
 const qaType=$('#qaType'), qaForm=$('#qaForm');
@@ -523,27 +472,107 @@ $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
 
 /* ===== Expenses ===== */
-function friendlyExpenseCategory(cat){
-  const c = String(cat || '').trim();
-  const upper = c.toUpperCase().replace(/\s+/g,'_');
-  if (upper === 'FEE' || /^E-?BAY FEES?$/i.test(c)) return 'eBay Fees';
-  if (upper === 'SHIPPING_LABEL') return 'Shipping Labels';
-  if (upper === 'REFUND') return 'Refunds';
-  if (upper === 'TRANSFER') return 'Transfers';
-  if (!c) return 'Other';
-  return c; // keep manual categories as-is
-}
 function renderExpenses(){
   const ex=store.get('expenses',[]);
   $('#expenseLog').innerHTML = ex.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-    .map(e=>`<li><strong>${e.name}</strong> — ${money(e.amount)} <span class="muted">(${friendlyExpenseCategory(e.category)})</span><br>
+    .map(e=>`<li><strong>${e.name}</strong> — ${money(e.amount)} <span class="muted">(${e.category})</span><br>
       <small class="muted">${e.date}${e.notes?' • '+e.notes:''}</small></li>`).join('');
 }
+
+/* ===== Routes ===== */
+function haversine(lat1,lon1,lat2,lon2){const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+function renderRoutes(){
+  const data=store.all(), home=data.settings?.home||{lat:null,lng:null}, ul=$('#routeList');
+  let list=data.stores.slice().sort((a,b)=>(a.open||'23:59').localeCompare(b.open||'23:59'));
+  if(home.lat!=null && home.lng!=null){
+    const idx=list.map((s,i)=>(s.lat==null||s.lng==null)?{i,d:Infinity}:{i,d:haversine(home.lat,home.lng,s.lat,s.lng)})
+                .reduce((best,c)=>c.d<best.d?c:best,{i:-1,d:Infinity}).i;
+    if(idx>=0){const [closest]=list.splice(idx,1); list.push(closest);}
+  }
+  ul.innerHTML=list.map(s=>{
+    const maps=(s.lat!=null&&s.lng!=null)?`https://maps.apple.com/?daddr=${s.lat},${s.lng}`:'';
+    return `<li><strong>${s.name||''}</strong> <span class="muted">${s.open||''}–${s.close||''}</span><br>
+      <small class="muted">${s.location||''}</small><br>${maps?`<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>`:''}</li>`;}).join('')
+    || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
+}
+$('#btnOrderRoute').addEventListener('click',renderRoutes);
+
+/* ===== Dashboard ===== */
+function sumSalesTotal(){
+  return store.get('sales',[]).reduce((s,x)=>s+Number((x.total ?? x.price) || 0),0);
+}
+function renderTotalSales(){ $('#totalSales').textContent = money(sumSalesTotal()) }
+
+function groupSales(period){
+  const sales=store.get('sales',[]), now=new Date(), fmt=d=>d.toISOString().slice(0,10);
+  const startOfWeek=d=>{const t=new Date(d); const w=(t.getDay()+6)%7; t.setDate(t.getDate()-w); t.setHours(0,0,0,0); return t;};
+  const startOfMonth=d=>new Date(d.getFullYear(), d.getMonth(), 1);
+  let labels=[], data=[];
+  if(period==='today'){ labels=[...Array(24)].map((_,h)=>h+":00"); const map=new Array(24).fill(0);
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(fmt(dt)===fmt(now)) map[dt.getHours()]+=Number((s.total ?? s.price) || 0)}); data=map; }
+  else if(period==='week'){ const start=startOfWeek(now); labels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const map=new Array(7).fill(0);
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start){const i=(dt.getDay()+6)%7; map[i]+=Number((s.total ?? s.price) || 0)}}); data=map; }
+  else if(period==='month'){ const start=startOfMonth(now), days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+    labels=[...Array(days)].map((_,i)=>String(i+1)); const map=new Array(days).fill(0);
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start&&dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number((s.total ?? s.price) || 0)}); data=map; }
+  else { labels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const map=new Array(12).fill(0);
+    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number((s.total ?? s.price) || 0)}); data=map; }
+  return {labels,data};
+}
+
+function renderSalesChart(){
+  const el = $('#salesChart'); 
+  if (!el) return;
+
+  const hasChart = typeof Chart !== 'undefined';
+  const { labels, data } = groupSales($('#periodSelect').value);
+  if (!hasChart){ 
+    console.warn('Chart.js not loaded; skipping sales chart'); 
+    return; 
+  }
+
+  if (window.__charts && window.__charts.sales){ 
+    window.__charts.sales.destroy(); 
+  }
+
+  const ctx = el.getContext('2d');
+  window.__charts = window.__charts || {};
+  window.__charts.sales = new Chart(ctx, {
+    type: 'bar',
+    data: { 
+      labels, 
+      datasets: [{ label: 'Sales', data }] 
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      resizeDelay: 200,
+      animation: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: 1000,
+          ticks: {
+            stepSize: 500,
+            callback: function(value) {
+              return (value === 0 || value === 500 || value === 1000) ? value : '';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+$('#periodSelect').addEventListener('change',()=>safe(renderSalesChart));
+
 function renderExpensePie(){
   const el=$('#expenseChart'); if(!el) return;
   const hasChart=typeof Chart!=='undefined';
   const by={}, ex=store.get('expenses',[]);
-  ex.forEach(e=>{ const k=friendlyExpenseCategory(e.category); by[k]=(by[k]||0)+Number(e.amount||0); });
+  ex.forEach(e=>by[e.category]=(by[e.category]||0)+Number(e.amount||0));
   const entries=Object.entries(by).sort((a,b)=>b[1]-a[1]);
   $('#expenseList').innerHTML = entries.map(([k,v])=>`<li><strong>${k}</strong> — ${money(v)}</li>`).join('') || '<li class="muted">No expenses yet.</li>';
   if(!hasChart){ console.warn('Chart.js not loaded; skipping expense chart'); return; }
@@ -557,7 +586,7 @@ function renderExpensePie(){
   });
 }
 
-/* ===== Stores Performance (present to avoid missing fn) ===== */
+/* ===== Stores Performance ===== */
 function renderStoresPerf(){
   const items = store.get('items', []);
   const sales = store.get('sales', []);
@@ -614,12 +643,26 @@ $('#backupFile').addEventListener('change',e=>{const f=e.target.files?.[0]; if(!
 const modal=$('#modalSettings');
 $('#btnSettings').addEventListener('click',()=>{ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); loadSettings(); });
 $('#btnCloseSettings').addEventListener('click',()=>{ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); });
-function loadSettings(){ const s=store.get('settings',{home:{lat:null,lng:null}}); $('#homeLat').value=s.home?.lat??''; $('#homeLng').value=s.home?.lng??''; }
-$('#btnSaveSettings2').addEventListener('click',()=>{ const s=store.get('settings',{home:{lat:null,lng:null}});
+function loadSettings(){
+  const s=store.get('settings',{home:{lat:null,lng:null}, flags:{showToolbar:false}});
+  $('#homeLat').value=s.home?.lat??'';
+  $('#homeLng').value=s.home?.lng??'';
+  const cb=document.querySelector('#showToolbar');
+  if (cb) cb.checked = !!(s.flags && s.flags.showToolbar);
+}
+$('#btnSaveSettings2').addEventListener('click',()=>{
+  const s=store.get('settings',{home:{lat:null,lng:null}, flags:{showToolbar:false}});
   s.home={lat:$('#homeLat').value?Number($('#homeLat').value):null, lng:$('#homeLng').value?Number($('#homeLng').value):null};
-  store.set('settings',s); toast('Settings saved'); safe(renderRoutes); });
+  const cb=document.querySelector('#showToolbar');
+  s.flags = s.flags || {};
+  if (cb) s.flags.showToolbar = !!cb.checked;
+  store.set('settings',s);
+  toast('Settings saved');
+  safe(renderRoutes);
+  updateToolbarVisibility();
+});
 $('#btnClearAll').addEventListener('click',()=>{ if(confirm('Erase all local data? This cannot be undone.')){
-  ['items','expenses','stores','sales','settings'].forEach(k=>store.del(k)); tryRenderAll(); toast('All data cleared'); }});
+  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger'].forEach(k=>localStorage.removeItem(k)); tryRenderAll(); toast('All data cleared'); }});
 $('#btnUseLocation').addEventListener('click',()=>{ if(!('geolocation' in navigator)){toast('Geolocation not supported','bad');return;}
   toast('Getting your location…'); navigator.geolocation.getCurrentPosition(
     (pos)=>{const {latitude,longitude}=pos.coords||{}; if(typeof latitude==='number'){ $('#homeLat').value=latitude.toFixed(6); $('#homeLng').value=longitude.toFixed(6);
@@ -630,77 +673,15 @@ $('#btnUseLocation').addEventListener('click',()=>{ if(!('geolocation' in naviga
 
 /* ===== Safe render helpers ===== */
 function safe(fn){ try{ fn(); } catch(e){ console.error(e); } }
-function tryRenderAll(){ safe(renderTotalSales); safe(()=>renderSalesChart()); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); }
+function tryRenderAll(){ safe(renderTotalSales); safe(()=>renderSalesChart()); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); }
 
 /* Initial render AFTER page fully loads (ensures Chart.js ready if available) */
 window.addEventListener('load', tryRenderAll);
-
-/* ===== Dashboard (after helpers defined) ===== */
-function sumSalesTotal(){
-  return store.get('sales',[]).reduce((s,x)=>s+Number((x.total ?? x.price) || 0),0);
-}
-function renderTotalSales(){ $('#totalSales').textContent = money(sumSalesTotal()) }
-function groupSales(period){
-  const sales=store.get('sales',[]), now=new Date(), fmt=d=>d.toISOString().slice(0,10);
-  const startOfWeek=d=>{const t=new Date(d); const w=(t.getDay()+6)%7; t.setDate(t.getDate()-w); t.setHours(0,0,0,0); return t;};
-  const startOfMonth=d=>new Date(d.getFullYear(), d.getMonth(), 1);
-  let labels=[], data=[];
-  if(period==='today'){ labels=[...Array(24)].map((_,h)=>h+":00"); const map=new Array(24).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(fmt(dt)===fmt(now)) map[dt.getHours()]+=Number((s.total ?? s.price) || 0)}); data=map; }
-  else if(period==='week'){ const start=startOfWeek(now); labels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; const map=new Array(7).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start){const i=(dt.getDay()+6)%7; map[i]+=Number((s.total ?? s.price) || 0)}}); data=map; }
-  else if(period==='month'){ const start=startOfMonth(now), days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-    labels=[...Array(days)].map((_,i)=>String(i+1)); const map=new Array(days).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt>=start&&dt.getMonth()===now.getMonth()) map[dt.getDate()-1]+=Number((s.total ?? s.price) || 0)}); data=map; }
-  else { labels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const map=new Array(12).fill(0);
-    sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number((s.total ?? s.price) || 0)}); data=map; }
-  return {labels,data};
-}
-function renderSalesChart(){
-  const el = $('#salesChart'); if (!el) return;
-  const hasChart = typeof Chart !== 'undefined';
-  const { labels, data } = groupSales($('#periodSelect').value);
-  if (!hasChart){ console.warn('Chart.js not loaded; skipping sales chart'); return; }
-  if (window.__charts && window.__charts.sales){ window.__charts.sales.destroy(); }
-  const ctx = el.getContext('2d');
-  window.__charts = window.__charts || {};
-  window.__charts.sales = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Sales', data }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      resizeDelay: 200,
-      animation: false,
-      scales: {
-        y: {
-          beginAtZero: true,
-          min: 0,
-          max: 1000,
-          ticks: {
-            stepSize: 500,
-            callback: function(value) {
-              return (value === 0 || value === 500 || value === 1000) ? value : '';
-            }
-          }
-        }
-      }
-    }
-  });
-}
-$('#periodSelect').addEventListener('change',()=>safe(renderSalesChart));
 </script>
 
 <script>
 /* --------------- CONFIG --------------- */
 const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
-
-/* Guards (in case first block ever fails) */
-if (!window.$) window.$ = (sel) => document.querySelector(sel);
-if (!window.money) window.money = (n) => {
-  const v = Number(n||0);
-  return (v < 0 ? '- $' + Math.abs(v).toFixed(2) : '$' + v.toFixed(2));
-};
 
 /* --------------- UTILITIES --------------- */
 function readArr(key){
@@ -714,7 +695,6 @@ function writeArr(key, arr){
 }
 const keySale = r => [r.notes, r.date, r.price].join('|');
 const keyExp  = r => [r.notes, r.date, r.cost].join('|');
-
 function mergeIntoLocalStorage(sales, expenses) {
   const existingSales = readArr('tt-sales');
   const existingExp   = readArr('tt-expenses');
@@ -725,7 +705,6 @@ function mergeIntoLocalStorage(sales, expenses) {
   if (freshSales.length) writeArr('tt-sales', existingSales.concat(freshSales));
   if (freshExp.length)   writeArr('tt-expenses', existingExp.concat(freshExp));
 }
-
 function splitLedger(ledger) {
   const sales = (ledger || [])
     .filter(x => x.direction === 'CREDIT' && x.kind === 'SALE')
@@ -753,18 +732,6 @@ function splitLedger(ledger) {
   return { sales, expenses };
 }
 
-/* Build a ledger from local tt-sales / tt-expenses if needed */
-function ledgerFromLocal(){
-  const sales = readArr('tt-sales').map(s => ({
-    date: s.date, direction:'CREDIT', kind:'SALE', title: s.item || s.title || 'Sale', amount: Number(s.price||0)
-  }));
-  const ex = readArr('tt-expenses').map(e => ({
-    date: e.date, direction:'DEBIT', kind: (String(e.category||'Other').toUpperCase().replace(/\s+/g,'_')),
-    title: e.item || e.name || 'Expense', amount: Number(e.cost||e.amount||0)
-  }));
-  return [...sales, ...ex].sort((a,b)=>(a.date > b.date ? 1 : -1));
-}
-
 async function fetchJSON(url) {
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + url);
@@ -773,24 +740,19 @@ async function fetchJSON(url) {
 
 function rerenderIfAvailable() {
   if (typeof renderSalesChart  === 'function') renderSalesChart();
+  if (typeof renderSalesTable  === 'function') renderSalesTable();
   if (typeof renderExpenses    === 'function') renderExpenses();
-  if (typeof renderExpensePie  === 'function') renderExpensePie();
-  if (typeof renderStoresPerf  === 'function') renderStoresPerf();
-  if (typeof renderInventory   === 'function') renderInventory();
-  if (typeof renderLedger      === 'function') renderLedger();
 }
 
 /* --------------- SYNC FUNCTIONS --------------- */
 async function pullCombinedOrOrders() {
   try {
-    // Prefer combined (sales + debits like fees/labels/etc.)
+    // Prefer combined (sales + fees/labels/etc.)
     const ledger = await fetchJSON(BACKEND_URL + '/combined');
-    // store raw ledger for the Ledger tab (optional)
-    localStorage.setItem('tt-ledger', JSON.stringify(ledger || []));
     const { sales, expenses } = splitLedger(ledger);
     mergeIntoLocalStorage(sales, expenses);
   } catch (e) {
-    // Fallback: orders only (if finances not available)
+    // Fallback: orders only (if finances scope not enabled yet)
     try {
       const orders = await fetchJSON(BACKEND_URL + '/orders');
       const sales = (orders || []).map(o => ({
@@ -803,21 +765,25 @@ async function pullCombinedOrOrders() {
         notes: `Order ${o.orderId || ''}`.trim()
       }));
       mergeIntoLocalStorage(sales, []);
-      localStorage.setItem('tt-ledger', JSON.stringify(ledgerFromLocal()));
     } catch (e2) {
       console.warn('Both /combined and /orders failed:', e, e2);
     }
   }
   rerenderIfAvailable();
+  updateToolbarVisibility();  // 🔽 hide toolbar once we have data (unless user forces it on)
 }
 
 async function syncNow() {
-  try { await fetchJSON(BACKEND_URL + '/sync-now'); } catch {}
+  try {
+    await fetchJSON(BACKEND_URL + '/sync-now');
+  } catch (e) {
+    // ignore
+  }
   await pullCombinedOrOrders();
 }
 
 async function backfillFrom(dateStr /* YYYY-MM-DD */) {
-  // Prefer absolute sync-from:
+  // If your worker has /sync-from, prefer that:
   try {
     const url = new URL(BACKEND_URL + '/sync-from');
     url.searchParams.set('date', dateStr);
@@ -832,17 +798,32 @@ async function backfillFrom(dateStr /* YYYY-MM-DD */) {
   const start = new Date(dateStr + 'T00:00:00Z').getTime();
   const now   = Date.now();
   const days  = Math.max(1, Math.ceil((now - start) / 86400000));
-  try { await fetchJSON(BACKEND_URL + '/sync-backfill?days=' + days); } catch {}
+  try {
+    await fetchJSON(BACKEND_URL + '/sync-backfill?days=' + days);
+  } catch (e) {
+    console.warn('sync-backfill failed:', e);
+  }
   await pullCombinedOrOrders();
 }
 
-/* --------------- SMALL UI (Sync toolbar) --------------- */
+/* --------------- TOOLBAR (auto-hide switch) --------------- */
 function injectEbayControls() {
   if (document.getElementById('ebay-sync-toolbar')) return;
 
   const bar = document.createElement('div');
   bar.id = 'ebay-sync-toolbar';
-  bar.style.cssText = 'position:relative;margin:12px 0;padding:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
+  bar.style.cssText = [
+    'position:relative',
+    'margin:12px 0',
+    'padding:8px',
+    'border:1px solid var(--line)',
+    'background:var(--card)',
+    'border-radius:12px',
+    'display:flex',
+    'gap:8px',
+    'flex-wrap:wrap',
+    'align-items:center'
+  ].join(';');
 
   const title = document.createElement('strong');
   title.textContent = 'eBay Sync';
@@ -854,95 +835,50 @@ function injectEbayControls() {
   connect.target = '_blank';
   connect.rel = 'noopener';
   connect.textContent = 'Connect eBay';
-  connect.className = 'tt-btn';
+  connect.className = 'btn';
   bar.appendChild(connect);
 
   const btnSync = document.createElement('button');
   btnSync.textContent = 'Sync Now';
   btnSync.onclick = syncNow;
-  btnSync.className = 'tt-btn';
+  btnSync.className = 'btn';
   bar.appendChild(btnSync);
 
   const btnBackfill = document.createElement('button');
   btnBackfill.textContent = 'Backfill from Jan 1, 2025';
   btnBackfill.onclick = () => backfillFrom('2025-01-01');
-  btnBackfill.className = 'tt-btn';
+  btnBackfill.className = 'btn';
   bar.appendChild(btnBackfill);
 
-  const anchor = document.getElementById('ebay-toolbar-anchor') || document.body;
-  anchor.parentNode.insertBefore(bar, anchor.nextSibling);
+  const main = document.querySelector('main') || document.body;
+  main.insertBefore(bar, main.firstChild);
 }
 
-/* --------------- LEDGER RENDERING --------------- */
-function ensureLedgerFiltersInit(){
-  const from = $('#lgFrom'), to = $('#lgTo');
-  if (!from.value) {
-    const d = new Date(); d.setMonth(d.getMonth()-3); // last 3 months default
-    from.value = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+/** Show toolbar only if:
+ *  - user explicitly enabled it in Settings, OR
+ *  - we don't yet have any eBay data (so they can connect the first time).
+ */
+function updateToolbarVisibility() {
+  const s = store.get('settings', { flags:{showToolbar:false} });
+  const sales = JSON.parse(localStorage.getItem('tt-sales')||'[]');
+  const exps  = JSON.parse(localStorage.getItem('tt-expenses')||'[]');
+  const hasData = (Array.isArray(sales) && sales.length>0) || (Array.isArray(exps) && exps.length>0);
+
+  const shouldShow = (s.flags?.showToolbar === true) || !hasData;
+  const bar = document.getElementById('ebay-sync-toolbar');
+
+  if (shouldShow) {
+    if (!bar) injectEbayControls();
+    else bar.style.display = '';
+  } else {
+    if (bar) bar.remove();
   }
-  if (!to.value) {
-    const d = new Date();
-    to.value = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
-  }
 }
-function getLedgerData(){
-  try{
-    const raw = JSON.parse(localStorage.getItem('tt-ledger') || '[]');
-    if (Array.isArray(raw) && raw.length) return raw;
-  }catch{}
-  return ledgerFromLocal(); // fallback
-}
-function renderLedger(){
-  ensureLedgerFiltersInit();
-  const from = new Date($('#lgFrom').value + 'T00:00:00Z');
-  const to   = new Date($('#lgTo').value   + 'T23:59:59Z');
-  const type = $('#lgType').value;
-
-  const tb = $('#lgTable tbody');
-  const all = getLedgerData();
-
-  // Normalize friendly category for display
-  const rows = all.filter(r=>{
-    const dt = new Date(r.date||r.transactionDate||'');
-    if (!(dt >= from && dt <= to)) return false;
-    if (type !== 'ALL' && String(r.direction).toUpperCase() !== type) return false;
-    return true;
-  }).map(r=>{
-    // map kind to friendly names where applicable
-    let cat = r.kind || r.category || '';
-    const up = String(cat).toUpperCase().replace(/\s+/g,'_');
-    if (up==='FEE') cat = 'eBay Fees';
-    else if (up==='SHIPPING_LABEL') cat = 'Shipping Labels';
-    else if (up==='REFUND') cat = 'Refunds';
-    else if (up==='TRANSFER') cat = 'Transfers';
-    return {
-      date: String(r.date || r.transactionDate || '').slice(0,10),
-      direction: r.direction || (Number(r.amount)<0 ? 'DEBIT' : 'CREDIT'),
-      category: cat || 'Other',
-      title: r.title || r.item || 'Entry',
-      amount: Number(r.amount ?? r.price ?? r.total ?? 0) * (r.direction==='DEBIT' ? -1 : 1)
-    };
-  }).sort((a,b)=>(a.date > b.date ? 1 : -1));
-
-  tb.innerHTML = rows.map(r=>`
-    <tr>
-      <td>${r.date||''}</td>
-      <td>${r.direction}</td>
-      <td>${r.category}</td>
-      <td>${r.title}</td>
-      <td class="right">${money(r.amount)}</td>
-    </tr>
-  `).join('') || `<tr><td colspan="5" class="muted">No entries for this range.</td></tr>`;
-
-  const net = rows.reduce((s,x)=>s+Number(x.amount||0),0);
-  $('#lgNet').textContent = money(net);
-}
-$('#lgApply').addEventListener('click', renderLedger);
 
 /* --------------- BOOTSTRAP --------------- */
 document.addEventListener('DOMContentLoaded', async () => {
-  injectEbayControls();         // toolbar
-  await pullCombinedOrOrders(); // fetch and populate
+  updateToolbarVisibility();     // 👈 use visibility controller, not always inject
+  await pullCombinedOrOrders();  // fetch and populate
 
   // Auto-broaden the period if the selected range is empty
   try {
@@ -957,7 +893,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch {}
 
-  renderLedger();
   rerenderIfAvailable();
 });
 </script>
@@ -965,7 +900,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 <!-- PWA: register your service worker (cache-busted URL) -->
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js?v=tt-v8-2025-08-24a').catch(()=>{});
+  navigator.serviceWorker.register('sw.js?v=tt-v8-2025-08-16a').catch(()=>{});
 }
 </script>
 </body>

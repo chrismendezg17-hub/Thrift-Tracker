@@ -753,6 +753,8 @@ window.addEventListener('load', tryRenderAll);
 </script>
 
 <script>
+if (!window.$) window.$ = (sel) => document.querySelector(sel);
+
 /* --------------- CONFIG --------------- */
 const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
 

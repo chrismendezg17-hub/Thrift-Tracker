@@ -369,7 +369,7 @@ window.store = window.store || {
 function getSettings(){ return store.get('settings', { home:{lat:null,lng:null}, flags:{showToolbar:false} }); }
 function saveSettings(s){ store.set('settings', s); }
 
-/* ===== Settings Modal Logic (single, non-duplicated) ===== */
+/* ===== Settings Modal Logic (single, ARIA-safe) ===== */
 function loadSettings(){
   const s = getSettings();
   $('#homeLat').value = s.home?.lat ?? '';
@@ -377,14 +377,24 @@ function loadSettings(){
   const cb = $('#showToolbar');
   if (cb) cb.checked = !!(s.flags && s.flags.showToolbar);
 }
-$('#btnSettings').addEventListener('click',()=>{
+function openSettings(){
   const m = $('#modalSettings');
-  m.classList.add('active'); m.setAttribute('aria-hidden','false'); loadSettings();
-});
-$('#btnCloseSettings').addEventListener('click',()=>{
+  m.inert = false;
+  m.classList.add('active');
+  m.setAttribute('aria-hidden','false');
+  const lat = $('#homeLat'); if (lat) lat.focus();
+}
+function closeSettings(){
   const m = $('#modalSettings');
-  m.classList.remove('active'); m.setAttribute('aria-hidden','true');
-});
+  if (document.activeElement) document.activeElement.blur();
+  m.classList.remove('active');
+  m.setAttribute('aria-hidden','true');
+  m.inert = true;
+  const opener = $('#btnSettings'); if (opener) opener.focus();
+}
+$('#btnSettings').addEventListener('click',()=>{ loadSettings(); openSettings(); });
+$('#btnCloseSettings').addEventListener('click', closeSettings);
+
 $('#btnSaveSettings2').addEventListener('click',()=>{
   const s = getSettings();
   s.home = {
@@ -431,6 +441,7 @@ $('#btnUseLocation').addEventListener('click',()=>{
     { enableHighAccuracy:true, timeout:10000, maximumAge:600000 }
   );
 });
+window.addEventListener('DOMContentLoaded', ()=>{ const m=$('#modalSettings'); if (m) m.inert = true; });
 
 /* ===== Tabs ===== */
 function activateView(id){
@@ -538,34 +549,51 @@ function renderExpenses(){
 }
 
 /* ===== Routes ===== */
-function haversine(lat1,lon1,lat2,lon2){const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
-  const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+function haversine(lat1,lon1,lat2,lon2){
+  const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
 function renderRoutes(){
   const data = store.all();
   const s = getSettings();
   const home = s.home || {lat:null,lng:null};
   const ul = $('#routeList');
 
-  let list = data.stores.slice().map(s => ({ id: s.id || ('s_'+Math.random().toString(36).slice(2)), ...s }));
+  let list = data.stores.slice().map(st => ({ id: st.id || ('s_'+Math.random().toString(36).slice(2)), ...st }));
 
-  const mutated = list.some((s,i) => s.id !== data.stores[i]?.id);
+  const mutated = list.some((st,i) => st.id !== data.stores[i]?.id);
   if (mutated) store.set('stores', list);
 
+  // Sort by open time first
   list.sort((a,b)=>(a.open||'23:59').localeCompare(b.open||'23:59'));
-  if (home.lat!=null && home.lng!=null && list.length){
-    const idx = list
-      .map((s,i)=>(s.lat==null||s.lng==null)?{i,d:Infinity}:{i,d:haversine(home.lat,home.lng,s.lat,s.lng)})
-      .reduce((best,c)=>c.d<best.d?c:best,{i:-1,d:Infinity}).i;
-    if (idx>=0){const [closest]=list.splice(idx,1); list.push(closest);}
+
+  // Move the nearest store to the END (final stop near Home)
+  let movedName = null;
+  if (Number.isFinite(home.lat) && Number.isFinite(home.lng) && list.length){
+    const withDists = list.map((st,i)=>{
+      const lat = Number(st.lat), lng = Number(st.lng);
+      const d = (Number.isFinite(lat) && Number.isFinite(lng))
+        ? haversine(home.lat, home.lng, lat, lng)
+        : Infinity;
+      return { i, d, name: st.name || '' };
+    });
+    const best = withDists.reduce((best,c)=> c.d < best.d ? c : best, {i:-1, d:Infinity, name:''});
+    if (best.i >= 0 && isFinite(best.d)) {
+      const [closest] = list.splice(best.i, 1);
+      list.push(closest);
+      movedName = closest.name || null;
+    }
   }
 
-  ul.innerHTML = list.map(s=>{
-    const maps = (s.lat!=null && s.lng!=null) ? `https://maps.apple.com/?daddr=${s.lat},${s.lng}` : '';
-    const loc  = s.location ? `<small class="muted">${s.location}</small><br>` : '';
-    const hours= (s.open||s.close) ? `<span class="muted">${s.open||''}${(s.open||s.close)?'–':''}${s.close||''}</span>` : '';
+  ul.innerHTML = list.map(st=>{
+    const maps = (Number.isFinite(st.lat) && Number.isFinite(st.lng)) ? `https://maps.apple.com/?daddr=${st.lat},${st.lng}` : '';
+    const loc  = st.location ? `<small class="muted">${st.location}</small><br>` : '';
+    const hours= (st.open||st.close) ? `<span class="muted">${st.open||''}${(st.open||st.close)?'–':''}${st.close||''}</span>` : '';
     return `
-      <li data-id="${s.id}">
-        <strong>${s.name||''}</strong> ${hours ? hours : ''}<br>
+      <li data-id="${st.id}">
+        <strong>${st.name||''}</strong> ${hours ? hours : ''}<br>
         ${loc}
         <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
           ${maps ? `<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>` : ''}
@@ -575,6 +603,8 @@ function renderRoutes(){
       </li>
     `;
   }).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store, or use “Bulk Import Stores”.</li>';
+
+  if (movedName) toast(`Final stop set to: ${movedName}`);
 }
 $('#routeList').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-id]'); if (!li) return;
@@ -583,16 +613,16 @@ $('#routeList').addEventListener('click', (e) => {
   const idx = stores.findIndex(s=>s.id===id); if (idx < 0) return;
 
   if (e.target.closest('.route-edit')) {
-    const s = stores[idx];
-    const name = prompt('Store name:', s.name ?? '') ?? s.name;
-    const location = prompt('Location/address:', s.location ?? '') ?? s.location;
-    const open = prompt('Open time (HH:MM, optional):', s.open ?? '') ?? s.open;
-    const close = prompt('Close time (HH:MM, optional):', s.close ?? '') ?? s.close;
-    const latIn = prompt('Latitude (optional):', s.lat ?? '') ?? (s.lat ?? '');
-    const lngIn = prompt('Longitude (optional):', s.lng ?? '') ?? (s.lng ?? '');
+    const st = stores[idx];
+    const name = prompt('Store name:', st.name ?? '') ?? st.name;
+    const location = prompt('Location/address:', st.location ?? '') ?? st.location;
+    const open = prompt('Open time (HH:MM, optional):', st.open ?? '') ?? st.open;
+    const close = prompt('Close time (HH:MM, optional):', st.close ?? '') ?? st.close;
+    const latIn = prompt('Latitude:', st.lat ?? '') ?? (st.lat ?? '');
+    const lngIn = prompt('Longitude:', st.lng ?? '') ?? (st.lng ?? '');
     const lat = latIn === '' ? null : Number(latIn);
     const lng = lngIn === '' ? null : Number(lngIn);
-    stores[idx] = {...s, name, location, open:open||null, close:close||null,
+    stores[idx] = {...st, name, location, open:open||null, close:close||null,
       lat:Number.isFinite(lat)?lat:null, lng:Number.isFinite(lng)?lng:null};
     store.set('stores', stores); toast('Store updated'); renderRoutes(); return;
   }
@@ -600,7 +630,7 @@ $('#routeList').addEventListener('click', (e) => {
     if (confirm('Delete this store?')) { stores.splice(idx, 1); store.set('stores', stores); toast('Store removed'); renderRoutes(); }
   }
 });
-$('#btnOrderRoute').addEventListener('click',renderRoutes);
+$('#btnOrderRoute').addEventListener('click', renderRoutes);
 
 /* ===== Bulk Import Stores ===== */
 function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
@@ -661,8 +691,8 @@ function dedupeStores(arr, existing){
   const preview = $('#bulkStoresPreview');
   if (!modal || !openBtn) return;
 
-  function show(){ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); input.focus(); }
-  function hide(){ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); preview.textContent=''; }
+  function show(){ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); modal.inert = false; input.focus(); }
+  function hide(){ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); modal.inert = true; preview.textContent=''; $('#btnBulkImportStores').focus(); }
 
   openBtn.addEventListener('click', show);
   closeBtn.addEventListener('click', hide);

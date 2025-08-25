@@ -612,34 +612,41 @@ function parseCsvLoose(text){
 }
 
 // Apple Maps link parser (supports ll, sll, daddr)
+// Apple Maps link parser — supports ll, sll, daddr, and coordinate + name/address
 function parseAppleMapsUrl(line){
   try{
-    const u = new URL(line.trim());
-    if (u.hostname !== 'maps.apple.com') return null;
+    const s = line.trim();
+    if (!/^https?:\/\/(maps\.apple\.com)(\/|$)/i.test(s)) return null;
+
+    const u = new URL(s);
     const p = u.searchParams;
 
-    const qName = p.get('q') || '';
-    const addr  = p.get('address') || '';
-    const ll    = p.get('ll') || p.get('sll') || p.get('daddr') || '';
-    let lat=null,lng=null;
-    if (ll && ll.includes(',')) {
-      const [a,b] = ll.split(',').map(Number);
-      if (Number.isFinite(a) && Number.isFinite(b)) { lat=a; lng=b; }
+    const name    = p.get('q') || p.get('name') || '';
+    const address = p.get('address') || '';
+
+    // Accept multiple coordinate params (Apple uses different ones)
+    let coord = p.get('ll') || p.get('sll') || p.get('daddr') || p.get('coordinate') || '';
+    // Extract "LAT,LNG" if the param has extra stuff
+    const m = coord && coord.match(/-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?/);
+    let lat = null, lng = null;
+    if (m) {
+      const [a,b] = m[0].split(',').map(Number);
+      if (Number.isFinite(a) && Number.isFinite(b)) { lat = a; lng = b; }
     }
 
-    const name = decodeURIComponent(qName || addr || '').trim();
-    const location = decodeURIComponent(addr).trim();
+    const placeName = decodeURIComponent(name || address).trim() || '(Place)';
+    const location  = decodeURIComponent(address).trim();
 
     return {
       id: 's_' + Math.random().toString(36).slice(2),
-      name: name || '(Place)',
-      location: location || '',
+      name: placeName,
+      location,
       open: null, close: null,
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null,
       notes: ''
     };
-  }catch{ return null; }
+  } catch { return null; }
 }
 
 // CSV row -> store shape
@@ -704,26 +711,36 @@ function dedupeStores(arr, existing){
   closeBtn.addEventListener('click', hide);
 
   function parseBulk(text){
-    const lines = text.split('\n').map(s=>s.trim()).filter(Boolean);
-    const looksCsv = lines.length && lines[0].includes(',') && /name|store|title|lat|lng|address|location/i.test(lines[0]);
-    let parsed = [];
+  const lines = text.split('\n').map(s=>s.trim()).filter(Boolean);
+  const first = lines[0] || '';
 
-    if (looksCsv) {
-      const rows = parseCsvLoose(text);
-      parsed = rows.map(parseStoreRow);
-    } else {
-      parsed = lines.map(l => parseAppleMapsUrl(l) || { __skip:true }).filter(o=>!o.__skip);
-      // If nothing parsed as Apple URLs, try naive CSV without header
-      if (!parsed.length && lines.some(l=>l.includes(','))) {
-        const rows = lines.map(l=>{
+  // Only treat as CSV if it’s clearly not a URL AND looks like a CSV header
+  const isLikelyUrl     = /^https?:\/\//i.test(first);
+  const looksCsvHeader  = /^(name|store|title|location|address|lat|lng)\s*,/i.test(first);
+  const looksCsv        = !isLikelyUrl && (looksCsvHeader || (lines.length > 1 && first.includes(',')));
+
+  let parsed = [];
+
+  if (looksCsv) {
+    const rows = parseCsvLoose(text);
+    parsed = rows.map(parseStoreRow);
+  } else {
+    // Prefer Apple Maps URLs (one per line)
+    parsed = lines.map(l => parseAppleMapsUrl(l) || { __skip:true }).filter(o => !o.__skip);
+
+    // Naive CSV fallback ONLY if not all lines are URLs
+    if (!parsed.length && lines.some(l=>l.includes(',')) && !lines.every(l=>/^https?:\/\//i.test(l))) {
+      const rows = lines
+        .filter(l => !/^https?:\/\//i.test(l))
+        .map(l => {
           const [name='', location='', open='', close='', lat='', lng=''] = l.split(',');
-          return {name, location, open, close, lat, lng};
+          return { name, location, open, close, lat, lng };
         });
-        parsed = rows.map(parseStoreRow);
-      }
+      parsed = rows.map(parseStoreRow);
     }
-    return parsed;
   }
+  return parsed;
+}
 
   prevBtn.addEventListener('click', ()=>{
     const arr = parseBulk(input.value);

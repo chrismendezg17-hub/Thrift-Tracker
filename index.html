@@ -395,15 +395,75 @@ window.store = window.store || {
 
 // ---- Settings helpers ----
 function getSettings(){
-  const def = { home:{lat:null,lng:null}, flags:{showToolbar:false} };
-  const s = store.get('settings', def) || def;
-  s.home  = s.home  || {lat:null,lng:null};
-  s.flags = s.flags || {showToolbar:false};
-  return s;
+  return store.get('settings', { home:{lat:null,lng:null}, flags:{showToolbar:false} });
 }
-function saveSettings(s){
-  store.set('settings', s);
-}
+function saveSettings(s){ store.set('settings', s); }
+
+const modal = $('#modalSettings');
+
+$('#btnSettings').addEventListener('click', () => {
+  modal.classList.add('active');
+  modal.setAttribute('aria-hidden','false');
+  const s = getSettings();
+  $('#homeLat').value = s.home?.lat ?? '';
+  $('#homeLng').value = s.home?.lng ?? '';
+  const cb = document.querySelector('#showToolbar');
+  if (cb) cb.checked = !!(s.flags && s.flags.showToolbar);
+});
+
+$('#btnCloseSettings').addEventListener('click', () => {
+  modal.classList.remove('active');
+  modal.setAttribute('aria-hidden','true');
+});
+
+$('#btnSaveSettings2').addEventListener('click', () => {
+  const s = getSettings();
+  s.home = {
+    lat: $('#homeLat').value ? Number($('#homeLat').value) : null,
+    lng: $('#homeLng').value ? Number($('#homeLng').value) : null
+  };
+  const cb = document.querySelector('#showToolbar');
+  s.flags = s.flags || {};
+  if (cb) s.flags.showToolbar = !!cb.checked;
+  saveSettings(s);
+  toast('Settings saved');
+  safe(renderRoutes);
+  if (typeof updateToolbarVisibility === 'function') updateToolbarVisibility();
+});
+
+$('#btnClearAll').addEventListener('click', () => {
+  if (!confirm('Erase all local data? This cannot be undone.')) return;
+  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger']
+    .forEach(k => localStorage.removeItem(k));
+  tryRenderAll();
+  toast('All data cleared');
+});
+
+$('#btnUseLocation').addEventListener('click', () => {
+  if (!('geolocation' in navigator)) { toast('Geolocation not supported','bad'); return; }
+  toast('Getting your location…');
+  navigator.geolocation.getCurrentPosition(
+    function success(pos){
+      const { latitude, longitude } = pos.coords || {};
+      if (typeof latitude === 'number' && typeof longitude === 'number') {
+        $('#homeLat').value = latitude.toFixed(6);
+        $('#homeLng').value = longitude.toFixed(6);
+        const s = getSettings();
+        s.home = { lat: Number($('#homeLat').value), lng: Number($('#homeLng').value) };
+        saveSettings(s);
+        toast('Home location set');
+        safe(renderRoutes);
+      } else {
+        toast('Unable to read GPS','bad');
+      }
+    },
+    function error(err){
+      const reasons = {1:'Permission denied',2:'Position unavailable',3:'Timeout'};
+      toast(`Location error: ${reasons[err.code]||'Unknown'}`,'bad');
+    },
+    { enableHighAccuracy:true, timeout:10000, maximumAge:600000 }
+  );
+});
 
 window.tryRenderAll = window.tryRenderAll || function tryRenderAll() {
   if (typeof renderSalesChart === 'function') renderSalesChart();

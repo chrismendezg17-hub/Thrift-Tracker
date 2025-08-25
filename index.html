@@ -502,22 +502,100 @@ function renderExpenses(){
 }
 
 /* ===== Routes ===== */
+/* ===== Routes (with Edit/Delete) ===== */
 function haversine(lat1,lon1,lat2,lon2){const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
   const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+
 function renderRoutes(){
-  const data=store.all(), home=data.settings?.home||{lat:null,lng:null}, ul=$('#routeList');
-  let list=data.stores.slice().sort((a,b)=>(a.open||'23:59').localeCompare(b.open||'23:59'));
-  if(home.lat!=null && home.lng!=null){
-    const idx=list.map((s,i)=>(s.lat==null||s.lng==null)?{i,d:Infinity}:{i,d:haversine(home.lat,home.lng,s.lat,s.lng)})
-                .reduce((best,c)=>c.d<best.d?c:best,{i:-1,d:Infinity}).i;
-    if(idx>=0){const [closest]=list.splice(idx,1); list.push(closest);}
+  const data = store.all();
+  const home = data.settings?.home || {lat:null,lng:null};
+  const ul = document.getElementById('routeList');
+
+  // Ensure each store has an id
+  let list = data.stores.slice().map(s => ({ id: s.id || ('s_'+Math.random().toString(36).slice(2)), ...s }));
+
+  // Save back any generated ids
+  const mutated = list.some((s,i) => s.id !== data.stores[i]?.id);
+  if (mutated) store.set('stores', list);
+
+  // Sort by open time; move closest (by distance) to the end for your "final stop near Home" logic
+  list.sort((a,b)=>(a.open||'23:59').localeCompare(b.open||'23:59'));
+  if (home.lat!=null && home.lng!=null && list.length){
+    const idx = list
+      .map((s,i)=>(s.lat==null||s.lng==null)?{i,d:Infinity}:{i,d:haversine(home.lat,home.lng,s.lat,s.lng)})
+      .reduce((best,c)=>c.d<best.d?c:best,{i:-1,d:Infinity}).i;
+    if (idx>=0){const [closest]=list.splice(idx,1); list.push(closest);}
   }
-  ul.innerHTML=list.map(s=>{
-    const maps=(s.lat!=null&&s.lng!=null)?`https://maps.apple.com/?daddr=${s.lat},${s.lng}`:'';
-    return `<li><strong>${s.name||''}</strong> <span class="muted">${s.open||''}–${s.close||''}</span><br>
-      <small class="muted">${s.location||''}</small><br>${maps?`<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>`:''}</li>`;}).join('')
-    || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
+
+  ul.innerHTML = list.map(s=>{
+    const maps = (s.lat!=null && s.lng!=null) ? `https://maps.apple.com/?daddr=${s.lat},${s.lng}` : '';
+    const loc  = s.location ? `<small class="muted">${s.location}</small><br>` : '';
+    const hours= (s.open||s.close) ? `<span class="muted">${s.open||''}${(s.open||s.close)?'–':''}${s.close||''}</span>` : '';
+    return `
+      <li data-id="${s.id}">
+        <strong>${s.name||''}</strong> ${hours ? hours : ''}<br>
+        ${loc}
+        <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
+          ${maps ? `<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>` : ''}
+          <button class="btn ghost route-edit"  style="padding:6px 10px">✏️ Edit</button>
+          <button class="btn warn  route-del"   style="padding:6px 10px">🗑️ Delete</button>
+        </div>
+      </li>
+    `;
+  }).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store, or use “Bulk Import Stores”.</li>';
 }
+
+  // Handle Edit/Delete actions (event delegation on the list)
+document.getElementById('routeList').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-id]');
+  if (!li) return;
+  const id = li.getAttribute('data-id');
+  const stores = store.get('stores', []);
+  const idx = stores.findIndex(s=>s.id===id);
+  if (idx < 0) return;
+
+  // EDIT
+  if (e.target.closest('.route-edit')) {
+    const s = stores[idx];
+
+    const name = prompt('Store name:', s.name ?? '') ?? s.name;
+    const location = prompt('Location/address:', s.location ?? '') ?? s.location;
+    const open = prompt('Open time (HH:MM, optional):', s.open ?? '') ?? s.open;
+    const close = prompt('Close time (HH:MM, optional):', s.close ?? '') ?? s.close;
+
+    const latIn = prompt('Latitude (optional):', s.lat ?? '') ?? (s.lat ?? '');
+    const lngIn = prompt('Longitude (optional):', s.lng ?? '') ?? (s.lng ?? '');
+
+    const lat = latIn === '' ? null : Number(latIn);
+    const lng = lngIn === '' ? null : Number(lngIn);
+
+    stores[idx] = {
+      ...s,
+      name,
+      location,
+      open: open || null,
+      close: close || null,
+      lat: Number.isFinite(lat) ? lat : null,
+      lng: Number.isFinite(lng) ? lng : null
+    };
+
+    store.set('stores', stores);
+    toast('Store updated');
+    renderRoutes();
+    return;
+  }
+
+  // DELETE
+  if (e.target.closest('.route-del')) {
+    if (confirm('Delete this store?')) {
+      stores.splice(idx, 1);
+      store.set('stores', stores);
+      toast('Store removed');
+      renderRoutes();
+    }
+  }
+});
+
 /* ===== Bulk Import Stores (Apple Maps URLs or CSV, with auto-geocode) ===== */
 
 // Reuse CSV parser if present; tiny fallback otherwise

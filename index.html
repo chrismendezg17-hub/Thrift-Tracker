@@ -717,9 +717,25 @@ function mergeIntoLocalStorage(sales, expenses) {
 function splitLedger(ledger) {
   const toNum = v => Number(v ?? 0);
 
+  // Detect the $7.95 store subscription in multiple wordings
+  function isStoreSubscription(x) {
+    const amt = toNum(x.amount);
+    const blob = [x.title, x.kind, x.notes]
+      .map(s => String(s || '').toLowerCase())
+      .join(' | ');
+    return Math.abs(amt - 7.95) < 0.02 && (
+      blob.includes('non-sale') ||     // "non-sale charge"
+      blob.includes('nonsale')  ||     // "nonsale charge"
+      blob.includes('non sale') ||     // "non sale charge"
+      blob.includes('subscription') ||
+      blob.includes('store')
+    );
+  }
+
   // ---- Sales (unchanged) ----
   const sales = (ledger || [])
-    .filter(x => x.direction === 'CREDIT' && String(x.kind).toUpperCase() === 'SALE')
+    .filter(x => String(x.direction).toUpperCase() === 'CREDIT' &&
+                 String(x.kind).toUpperCase() === 'SALE')
     .map(x => ({
       date: String(x.date || '').slice(0,10),
       store: 'eBay',
@@ -730,30 +746,15 @@ function splitLedger(ledger) {
       notes: x.notes || (x.orderId ? `Order ${x.orderId}` : 'eBay sale')
     }));
 
-  // Helper: detect the $7.95 store subscription
-  function isStoreSubscription(x) {
-    const amt = toNum(x.amount);
-    const kind = String(x.kind || '').toUpperCase();
-    const title = String(x.title || '').toLowerCase();
-    return Math.abs(amt - 7.95) < 0.01 && (
-      kind === 'NON_SALE_CHARGE' ||
-      kind === 'FEE' ||
-      title.includes('non-sale charge') ||
-      title.includes('store subscription')
-    );
-  }
-
-  // ---- Expenses (include all DEBITs) ----
+  // ---- Expenses (all DEBITs) ----
   const expenses = (ledger || [])
-    .filter(x => x.direction === 'DEBIT') // take any money-out entry
+    .filter(x => String(x.direction).toUpperCase() === 'DEBIT')
     .map(x => {
-      const amt = toNum(x.amount);
-      let item = x.title || String(x.kind || 'Expense');
       let category = x.kind || 'Other';
+      let item = x.title || String(x.kind || 'Expense');
 
-      // Special case: rename the $7.95 non-sale charge, keep category as "Other"
       if (isStoreSubscription(x)) {
-        item = 'eBay Store Subscription';
+        item = 'eBay Store Subscription'; // rename just the $7.95 fee
         category = 'Other';
       }
 
@@ -762,7 +763,7 @@ function splitLedger(ledger) {
         vendor: 'eBay',
         category,
         item,
-        cost: amt,
+        cost: toNum(x.amount),
         notes: x.notes || ''
       };
     });

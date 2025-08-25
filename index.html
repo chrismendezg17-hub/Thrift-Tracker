@@ -717,19 +717,24 @@ function mergeIntoLocalStorage(sales, expenses) {
 function splitLedger(ledger) {
   const toNum = v => Number(v ?? 0);
 
-  // Detect the $7.95 store subscription in multiple wordings
+  // Identify the $7.95 store subscription while avoiding ad fees
   function isStoreSubscription(x) {
-    const amt = toNum(x.amount);
-    const blob = [x.title, x.kind, x.notes]
+    const amt  = toNum(x.amount);
+    const kind = String(x.kind || '').toUpperCase();
+    const blob = [x.title, x.notes]
       .map(s => String(s || '').toLowerCase())
       .join(' | ');
-    return Math.abs(amt - 7.95) < 0.02 && (
-      blob.includes('non-sale') ||     // "non-sale charge"
-      blob.includes('nonsale')  ||     // "nonsale charge"
-      blob.includes('non sale') ||     // "non sale charge"
-      blob.includes('subscription') ||
-      blob.includes('store')
-    );
+
+    // must be ~7.95 …
+    if (Math.abs(amt - 7.95) > 0.02) return false;
+
+    // … not an ad/promoted-listings charge
+    if (blob.includes('promoted') || blob.includes('listing') || blob.includes('ads')) return false;
+
+    // typical signatures for the subscription fee
+    return kind === 'NON_SALE_CHARGE' ||
+           blob.includes('subscription') ||
+           blob.includes('store');
   }
 
   // ---- Sales (unchanged) ----
@@ -746,15 +751,15 @@ function splitLedger(ledger) {
       notes: x.notes || (x.orderId ? `Order ${x.orderId}` : 'eBay sale')
     }));
 
-  // ---- Expenses (all DEBITs) ----
-  const expenses = (ledger || [])
+  // ---- Expenses (all debits) + rename subscription ----
+  let expenses = (ledger || [])
     .filter(x => String(x.direction).toUpperCase() === 'DEBIT')
     .map(x => {
-      let category = x.kind || 'Other';
       let item = x.title || String(x.kind || 'Expense');
+      let category = x.kind || 'Other';
 
       if (isStoreSubscription(x)) {
-        item = 'eBay Store Subscription'; // rename just the $7.95 fee
+        item = 'eBay Store Subscription';   // rename only the $7.95 fee
         category = 'Other';
       }
 
@@ -767,6 +772,20 @@ function splitLedger(ledger) {
         notes: x.notes || ''
       };
     });
+
+  // ---- De-dupe monthly store subscriptions (keep a single $7.95 per YYYY-MM) ----
+  const seen = new Set();
+  expenses = expenses.filter(e => {
+    let key;
+    if (e.item === 'eBay Store Subscription' && e.cost >= 7.90 && e.cost <= 8.00) {
+      key = 'sub|' + (e.date || '').slice(0,7); // YYYY-MM
+    } else {
+      key = [e.item, e.date, e.cost].join('|');
+    }
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   return { sales, expenses };
 }

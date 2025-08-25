@@ -502,7 +502,13 @@ $('#btnOrderRoute').addEventListener('click',renderRoutes);
 function sumSalesTotal(){
   return store.get('sales',[]).reduce((s,x)=>s+Number((x.total ?? x.price) || 0),0);
 }
-function renderTotalSales(){ $('#totalSales').textContent = money(sumSalesTotal()) }
+function renderTotalSales(){
+  const sel = document.querySelector('#periodSelect');
+  const period = sel ? sel.value : 'month';
+  const { data } = groupSales(period);
+  const total = (data || []).reduce((a,b)=>a + Number(b || 0), 0);
+  document.getElementById('totalSales').textContent = money(total);
+}
 
 function groupSales(period){
   const sales=store.get('sales',[]), now=new Date(), fmt=d=>d.toISOString().slice(0,10);
@@ -566,7 +572,10 @@ function renderSalesChart(){
   });
 }
 
-$('#periodSelect').addEventListener('change',()=>safe(renderSalesChart));
+$('#periodSelect').addEventListener('change', () => {
+  safe(renderSalesChart);
+  safe(renderTotalSales);
+});
 
 function renderExpensePie(){
   const el=$('#expenseChart'); if(!el) return;

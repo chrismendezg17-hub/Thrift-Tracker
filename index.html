@@ -206,6 +206,7 @@ if (typeof Chart === 'undefined') {
         <h2>Routes</h2>
         <div class="row">
           <button class="btn" id="btnOrderRoute">Order Today’s Route (final stop closest to Home)</button>
+          <button class="btn ghost" id="btnBulkImportStores">Bulk Import Stores</button>
         </div>
         <ul class="list" id="routeList"></ul>
       </div>
@@ -230,6 +231,27 @@ if (typeof Chart === 'undefined') {
   </nav>
 
   <!-- SETTINGS (with Use My Location) -->
+  <div class="modal" id="modalImportStores" aria-hidden="true">
+  <div class="panel">
+    <div class="head">
+      <h3>Bulk Import Stores</h3>
+      <button class="btn ghost" id="btnCloseImportStores">Close</button>
+    </div>
+    <p class="muted" style="margin-top:-6px">
+      Paste one of the following:
+      <br>• Apple Maps place links (one per line). Example: <code>https://maps.apple.com/?q=Goodwill&ll=42.9634,-85.6681</code>
+      <br>• CSV with headers: <code>name,location,open,close,lat,lng</code>
+    </p>
+    <textarea id="bulkStoresInput" rows="10" placeholder="One URL per line, or CSV…"
+      style="width:100%;background:var(--surface);border:1px solid #223146;color:var(--ink);padding:10px;border-radius:12px"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" id="btnDoImportStores">Import</button>
+      <button class="btn" id="btnPreviewImportStores">Preview</button>
+    </div>
+    <div id="bulkStoresPreview" class="muted" style="margin-top:8px"></div>
+  </div>
+</div>
+
   <div class="modal" id="modalSettings" aria-hidden="true">
     <div class="panel">
       <div class="head">
@@ -496,6 +518,157 @@ function renderRoutes(){
       <small class="muted">${s.location||''}</small><br>${maps?`<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>`:''}</li>`;}).join('')
     || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
+/* ===== Bulk Import Stores (Apple Maps URLs or CSV) ===== */
+
+// Reuse CSV parser you already have; if not present, tiny fallback:
+function parseCsvLoose(text){
+  if (typeof parseCsv === 'function') return parseCsv(text);
+  const lines = text.replace(/\r/g,'').split('\n').filter(l=>l.trim());
+  if (!lines.length) return [];
+  const headers = lines[0].split(',').map(h=>h.trim());
+  return lines.slice(1).map(l=>{
+    const cells = l.split(','); const o = {};
+    headers.forEach((h,i)=>o[h]=cells[i]??''); return o;
+  });
+}
+
+// Try to parse an Apple Maps URL: name (q/address) + ll=lat,lng
+function parseAppleMapsUrl(line){
+  try{
+    const u = new URL(line.trim());
+    if (u.hostname !== 'maps.apple.com') return null;
+    const p = u.searchParams;
+
+    const qName = p.get('q') || '';
+    const addr  = p.get('address') || '';
+    const ll    = p.get('ll') || p.get('sll') || p.get('daddr') || ''; // <-- added daddr
+    let lat=null,lng=null;
+    if (ll && ll.includes(',')) {
+      const [a,b] = ll.split(',').map(Number);
+      if (Number.isFinite(a) && Number.isFinite(b)) { lat=a; lng=b; }
+    }
+
+    const name = decodeURIComponent(qName || addr || '').trim();
+    const location = decodeURIComponent(addr).trim();
+    return {
+      id: 's_' + Math.random().toString(36).slice(2),
+      name: name || '(Place)',
+      location: location || '',
+      open: null, close: null,
+      lat: Number.isFinite(lat) ? lat : null,
+      lng: Number.isFinite(lng) ? lng : null,
+      notes: ''
+    };
+  }catch{ return null; }
+}
+
+// Parse CSV row into our store shape (header names flexible)
+function parseStoreRow(row){
+  const pick = (o, keys) => {
+    for (const k of keys) if (o[k]!=null && String(o[k]).trim()!=='') return String(o[k]).trim();
+    return '';
+  };
+  const name = pick(row, ['name','store','title']);
+  const location = pick(row, ['location','address','addr']);
+  const open = pick(row, ['open','opens','start','open_time']);
+  const close = pick(row, ['close','closes','end','close_time']);
+  const latS = pick(row, ['lat','latitude']);
+  const lngS = pick(row, ['lng','lon','long','longitude']);
+  const lat = latS ? Number(latS) : null;
+  const lng = lngS ? Number(lngS) : null;
+
+  return {
+    id: 's_' + Math.random().toString(36).slice(2),
+    name: name || '(Store)',
+    location,
+    open: open || null,
+    close: close || null,
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null,
+    notes: ''
+  };
+}
+
+// Deduplicate by lat/lng if present (tight), else name+location (case-insensitive)
+function dedupeStores(arr, existing){
+  const out = [];
+  const seenKey = new Set();
+
+  function key(s){
+    if (Number.isFinite(s.lat) && Number.isFinite(s.lng)) {
+      return `geo:${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
+    }
+    return `nl:${(s.name||'').toLowerCase().trim()}|${(s.location||'').toLowerCase().trim()}`;
+  }
+
+  const all = (existing||[]).concat(arr);
+  for (const s of all) {
+    const k = key(s);
+    if (seenKey.has(k)) continue;
+    seenKey.add(k);
+    out.push(s);
+  }
+  return out;
+}
+
+// UI wiring
+(function initBulkImportStores(){
+  const modal = document.getElementById('modalImportStores');
+  const openBtn = document.getElementById('btnBulkImportStores');
+  const closeBtn = document.getElementById('btnCloseImportStores');
+  const doBtn = document.getElementById('btnDoImportStores');
+  const prevBtn = document.getElementById('btnPreviewImportStores');
+  const input = document.getElementById('bulkStoresInput');
+  const preview = document.getElementById('bulkStoresPreview');
+
+  if (!modal || !openBtn) return;
+
+  function show(){ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); input.focus(); }
+  function hide(){ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); preview.textContent=''; }
+
+  openBtn.addEventListener('click', show);
+  closeBtn.addEventListener('click', hide);
+
+  function parseBulk(text){
+    const lines = text.split('\n').map(s=>s.trim()).filter(Boolean);
+    const looksCsv = lines.length && lines[0].includes(',') && /name|store|title|lat|lng|address|location/i.test(lines[0]);
+    let parsed = [];
+
+    if (looksCsv) {
+      const rows = parseCsvLoose(text);
+      parsed = rows.map(parseStoreRow);
+    } else {
+      parsed = lines.map(l => parseAppleMapsUrl(l) || { __skip:true });
+      parsed = parsed.filter(o=>!o.__skip);
+      // If nothing parsed as Apple URLs, try CSV-by-guessing (no header)
+      if (!parsed.length && lines.some(l=>l.includes(','))) {
+        const rows = lines.map(l=>{
+          const [name='', location='', open='', close='', lat='', lng=''] = l.split(',');
+          return {name, location, open, close, lat, lng};
+        });
+        parsed = rows.map(parseStoreRow);
+      }
+    }
+    return parsed;
+  }
+
+  prevBtn.addEventListener('click', ()=>{
+    const arr = parseBulk(input.value);
+    preview.textContent = arr.length ? `Will import ${arr.length} stores.` : 'Nothing detected.';
+  });
+
+  doBtn.addEventListener('click', ()=>{
+    const arr = parseBulk(input.value);
+    if (!arr.length) { toast('Nothing to import','bad'); return; }
+    const all = store.all();
+    const merged = dedupeStores(arr, all.stores);
+    store.set('stores', merged);
+    toast(`Imported ${arr.length} store${arr.length===1?'':'s'}`);
+    renderRoutes();
+    hide();
+  });
+})();
+
 $('#btnOrderRoute').addEventListener('click',renderRoutes);
 
 /* ===== Dashboard ===== */

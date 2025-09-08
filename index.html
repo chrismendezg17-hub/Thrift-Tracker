@@ -765,6 +765,56 @@ function renderExpenses(){
   }
 }
 
+// Edit/Delete actions for expenses (event delegation)
+document.getElementById('expenseLog').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-id]');
+  if (!li) return;
+  const id = li.getAttribute('data-id');
+
+  let ex = store.get('expenses', []);
+  const idx = ex.findIndex(x => x.id === id);
+  if (idx < 0) return;
+
+  // DELETE
+  if (e.target.closest('.exp-del')) {
+    if (confirm('Delete this expense?')) {
+      ex.splice(idx, 1);
+      store.set('expenses', ex);
+      normalizeExpensesInPlace();
+      renderExpensePie();
+      renderExpenses();
+      toast('Expense deleted');
+    }
+    return;
+  }
+
+  // EDIT
+  if (e.target.closest('.exp-edit')) {
+    const cur = ex[idx];
+
+    const name = prompt('Name:', cur.name ?? '') ?? cur.name;
+    const cat  = prompt('Category:', cur.category ?? '') ?? cur.category;
+    const amtS = prompt('Amount ($):', String(cur.amount ?? 0)) ?? String(cur.amount ?? 0);
+    const date = prompt('Date (YYYY-MM-DD):', cur.date ?? '') ?? cur.date;
+    const notes= prompt('Notes (optional):', cur.notes ?? '') ?? cur.notes;
+
+    const amt = Number(amtS);
+    ex[idx] = {
+      ...cur,
+      name: name?.trim() || cur.name,
+      category: cat?.trim() || cur.category,
+      amount: Number.isFinite(amt) ? amt : (cur.amount || 0),
+      date: date || cur.date,
+      notes: notes || ''
+    };
+
+    store.set('expenses', ex);
+    normalizeExpensesInPlace();   // keep labels/categories tidy
+    renderExpensePie();           // update pie
+    renderExpenses();             // refresh list
+    toast('Expense updated');
+  }
+});
 
 /* ================= SUPPLIES ================= */
 function renderSupplies(){

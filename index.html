@@ -414,6 +414,44 @@ function normalizeExpensesInPlace() {
   store.set('expenses', out);
 }
 
+/* ================= COGS ESTIMATION HELPERS ================= */
+function median(nums){
+  const a=nums.filter(n=>Number.isFinite(n)).sort((x,y)=>x-y);
+  if(!a.length) return 0;
+  const m=Math.floor(a.length/2);
+  return a.length%2 ? a[m] : (a[m-1]+a[m])/2;
+}
+function estimateCogForItem(it) {
+  const items = store.get('items', []);
+  const sameStore = items.filter(x => (x.store||'') === (it.store||'') && Number.isFinite(Number(x.price)));
+  if (sameStore.length >= 3) return Math.round(median(sameStore.map(x=>Number(x.price))) * 100)/100;
+  const all = items.filter(x => Number.isFinite(Number(x.price)));
+  if (all.length) return Math.round(median(all.map(x=>Number(x.price))) * 100)/100;
+  return 0;
+}
+function setCogForItem(itemId, amount, date){
+  const ex = store.get('expenses', []);
+  const id = 'cog_' + itemId;
+  const exists = ex.find(e => e.id === id);
+  const amt = Math.max(0, Number(amount||0));
+  if (exists) {
+    exists.amount = amt;
+    exists.category = 'Cost Of Goods';
+    exists.notes = (exists.notes||'').replace(/\s*\(Estimated\)$/,'');
+  } else {
+    ex.push({
+      id,
+      name: 'Cost of Goods',
+      category: 'Cost Of Goods',
+      amount: amt,
+      date: date || todayISO(),
+      notes: '(Estimated)'
+    });
+  }
+  store.set('expenses', ex);
+  normalizeExpensesInPlace();
+}
+
 /* ================= MODALS (ARIA-safe with inert) ================= */
 function openModal(id){ const m=$(id); if(!m) return; m.inert=false; m.classList.add('active'); m.setAttribute('aria-hidden','false'); }
 function closeModal(id){ const m=$(id); if(!m) return; document.activeElement?.blur?.(); m.classList.remove('active'); m.setAttribute('aria-hidden','true'); m.inert=true; }
@@ -503,6 +541,9 @@ function renderQA(){
       <label>Item Title<input type="text" id="i_title" placeholder="Sony DVD player"></label>
       <label>Cost of Goods ($)<input type="number" step="0.01" id="i_price" placeholder="4.99"></label>
     </div>
+    <label style="display:flex;align-items:center;gap:10px;margin-top:6px">
+      <input type="checkbox" id="i_cogs_unknown"> COGS unknown for now
+    </label>
     <div class="row">
       <label>Store<input type="text" id="i_store" placeholder="Goodwill Outlet"></label>
       <label>eBay Sell-through Rate (%)<input type="number" step="0.1" id="i_str" placeholder="e.g. 65"></label>
@@ -515,7 +556,10 @@ function renderQA(){
         <label>Sold Price<input type="number" step="0.01" id="i_soldfor"></label>
         <label>Shipping Cost<input type="number" step="0.01" id="i_ship" placeholder="e.g. 8.95"></label>
       </div>
-    </details>`; }
+    </details>`;
+    // Toggle price input if "unknown" checked
+    setTimeout(()=>{ const unk=$('#i_cogs_unknown'), price=$('#i_price'); if(unk&&price){ const sync=()=>{ price.disabled=unk.checked; if(unk.checked) price.value=''; }; unk.addEventListener('change',sync); sync(); }},0);
+  }
   else if(t==='store'){ qaForm.innerHTML=`
     <div class="row">
       <label>Store Name<input type="text" id="s_name" placeholder="New 2 You"></label>
@@ -563,7 +607,8 @@ $('#qaSave').addEventListener('click', ()=>{
     const id = 'i_' + Date.now();
     const title = $('#i_title').value.trim();
     const date  = $('#i_date').value || todayISO();
-    const price = Number($('#i_price').value || 0);
+    const unknownCogs = $('#i_cogs_unknown')?.checked === true;
+    const price = unknownCogs ? null : Number($('#i_price').value || 0);
     const storeName = $('#i_store').value.trim();
 
     const soldDate = $('#i_sold').value || null;
@@ -583,21 +628,23 @@ $('#qaSave').addEventListener('click', ()=>{
     data.items.push(it);
     store.set('items', data.items);
 
-    // 1) COGS
-    const cogExpense = {
-      id: 'cog_' + id,
-      name: title || 'Cost of Goods',
-      category: 'Cost Of Goods',
-      amount: price,
-      notes: storeName ? `COGS for ${title} @ ${storeName}` : `COGS for ${title}`,
-      date
-    };
-    let ex = data.expenses.filter(e => e.id !== cogExpense.id);
-    ex.push(cogExpense);
+    // If COGS known now, create COGS expense
+    if (!unknownCogs) {
+      const cogExpense = {
+        id: 'cog_' + id,
+        name: title || 'Cost of Goods',
+        category: 'Cost Of Goods',
+        amount: Number(price||0),
+        notes: storeName ? `COGS for ${title} @ ${storeName}` : `COGS for ${title}`,
+        date
+      };
+      let ex = data.expenses.filter(e => e.id !== cogExpense.id);
+      ex.push(cogExpense);
+      store.set('expenses', ex);
+    }
 
-    // 2) If sold: create sale + estimated fees + optional shipping
+    // If sold: create sale + est. fees + optional shipping
     if (soldDate && Number.isFinite(soldFor)) {
-      // sale
       const saleRec = {
         id: 'sale_' + id,
         title: title || 'Manual sale',
@@ -611,7 +658,6 @@ $('#qaSave').addEventListener('click', ()=>{
       const salesNo = store.get('sales', []).filter(s=>s.id!==saleRec.id); salesNo.push(saleRec);
       store.set('sales', salesNo);
 
-      // fees (est.)
       const feeRate = Number(getSettings()?.feeRate ?? 0.13);
       const estFees = Math.max(0, soldFor * feeRate);
       const feeExp = {
@@ -622,9 +668,9 @@ $('#qaSave').addEventListener('click', ()=>{
         notes: `~${(feeRate*100).toFixed(1)}% on ${money(soldFor)} (item ${id})`,
         date: soldDate
       };
-      ex = ex.filter(e => e.id !== feeExp.id); ex.push(feeExp);
+      let ex = store.get('expenses', []).filter(e => e.id !== feeExp.id);
+      ex.push(feeExp);
 
-      // shipping (optional)
       if (Number.isFinite(shipCost) && shipCost > 0) {
         const shipExp = {
           id: 'ship_' + id,
@@ -636,11 +682,17 @@ $('#qaSave').addEventListener('click', ()=>{
         };
         ex = ex.filter(e => e.id !== shipExp.id); ex.push(shipExp);
       }
+      store.set('expenses', ex);
+
+      // If COGS unknown, create an estimated COG now
+      if (unknownCogs) {
+        const est = estimateCogForItem(it);
+        setCogForItem(id, est, soldDate || date);
+      }
     }
 
-    store.set('expenses', ex);
     normalizeExpensesInPlace();
-    toast(soldDate ? 'Item + sale + expenses saved' : 'Item saved (+ COGS)');
+    toast(soldDate ? 'Item + sale + expenses saved' : (unknownCogs ? 'Item saved (COGS unknown)' : 'Item saved (+ COGS)'));
   }
 
   else if(qaType.value==='store'){
@@ -693,12 +745,14 @@ function renderInventory(){
 
   let items=data.items.map(i=>{
     const sold = (i.sold_for && i.sold_date) || soldTitles.has((i.title||'').toLowerCase().trim());
+    // Determine current COG value: prefer linked expense map, else item.price (may be null)
+    const cogVal = (cogs.get(i.id) ?? (Number.isFinite(Number(i.price)) ? Number(i.price) : null));
     return {
       ...i,
       _sold: !!sold,
       _fees: fees.get(i.id)||0,
       _ship: ship.get(i.id)||0,
-      _cog:  cogs.get(i.id) ?? Number(i.price||0)
+      _cog:  cogVal
     };
   });
 
@@ -706,26 +760,62 @@ function renderInventory(){
   if(f==='sold') items=items.filter(i=>i._sold);
   if(f==='unsold') items=items.filter(i=>!i._sold);
 
-  tbody.innerHTML=items.map(i=>`
-    <tr>
+  tbody.innerHTML=items.map(i=>{
+    const needsCogs = (i._cog == null || !Number.isFinite(i._cog));
+    const statusHtml = needsCogs
+      ? '<span class="pill" style="border-color:#b45309;color:#f59e0b">Needs COGS</span>'
+      : (i._sold ? '<span class="pill sold">Sold</span>' : '<span class="pill await">Awaiting Sale</span>');
+    return `
+    <tr data-id="${i.id}">
       <td>${i.title||''}</td>
       <td>${i.store||''}</td>
       <td>${i.date||''}</td>
       <td>${i.listed_date||''}</td>
       <td>${i.sold_date||''}</td>
-      <td>${money(i._cog)}</td>
+      <td>${needsCogs ? '$0.00 <button class="btn ghost set-cogs" style="padding:4px 8px;margin-left:6px">Set COGS</button>' : money(i._cog)}</td>
       <td>${i.sold_for!=null?money(i.sold_for):''}</td>
       <td>${i._fees?money(i._fees):''}</td>
       <td>${i._ship?money(i._ship):''}</td>
-      <td>${i._sold?'<span class="pill sold">Sold</span>':'<span class="pill await">Awaiting Sale</span>'}</td>
-    </tr>`).join('');
+      <td>${statusHtml}</td>
+    </tr>`;
+  }).join('');
 }
 $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
 
+// Inline "Set COGS" from Inventory table
+document.getElementById('invTable').addEventListener('click', (e) => {
+  if (!e.target.closest('.set-cogs')) return;
+  const tr = e.target.closest('tr[data-id]');
+  if (!tr) return;
+
+  const id = tr.getAttribute('data-id');
+  const items = store.get('items', []);
+  const idx = items.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const it = items[idx];
+
+  const input = prompt('Enter COGS ($):', '');
+  if (input == null) return;
+  const amt = Number(input);
+  if (!Number.isFinite(amt) || amt < 0) { toast('Invalid amount','bad'); return; }
+
+  // update item price
+  items[idx].price = amt;
+  store.set('items', items);
+
+  // create/update linked COGS expense
+  setCogForItem(id, amt, it.date || todayISO());
+  toast('COGS set');
+
+  renderInventory();
+  renderExpenses();
+  renderExpensePie();
+});
+
 function renderExpenses(){
   try {
-    // Ensure every expense has an id so edit/delete works
+    // Ensure every expense has an id
     let ex = store.get('expenses', []);
     let mutated = false;
     ex = (Array.isArray(ex) ? ex : []).map(e => {
@@ -739,7 +829,7 @@ function renderExpenses(){
         date: String(e?.date ?? '')
       };
     });
-    if (mutated) store.set('expenses', ex); // persist new ids
+    if (mutated) store.set('expenses', ex);
 
     const html = ex
       .slice()
@@ -764,8 +854,7 @@ function renderExpenses(){
     if (ul) ul.innerHTML = '<li class="muted">No expenses yet.</li>';
   }
 }
-
-// Edit/Delete actions for expenses (event delegation)
+// Edit/Delete for expenses
 document.getElementById('expenseLog').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-id]');
   if (!li) return;
@@ -775,7 +864,6 @@ document.getElementById('expenseLog').addEventListener('click', (e) => {
   const idx = ex.findIndex(x => x.id === id);
   if (idx < 0) return;
 
-  // DELETE
   if (e.target.closest('.exp-del')) {
     if (confirm('Delete this expense?')) {
       ex.splice(idx, 1);
@@ -788,10 +876,8 @@ document.getElementById('expenseLog').addEventListener('click', (e) => {
     return;
   }
 
-  // EDIT
   if (e.target.closest('.exp-edit')) {
     const cur = ex[idx];
-
     const name = prompt('Name:', cur.name ?? '') ?? cur.name;
     const cat  = prompt('Category:', cur.category ?? '') ?? cur.category;
     const amtS = prompt('Amount ($):', String(cur.amount ?? 0)) ?? String(cur.amount ?? 0);
@@ -809,9 +895,9 @@ document.getElementById('expenseLog').addEventListener('click', (e) => {
     };
 
     store.set('expenses', ex);
-    normalizeExpensesInPlace();   // keep labels/categories tidy
-    renderExpensePie();           // update pie
-    renderExpenses();             // refresh list
+    normalizeExpensesInPlace();
+    renderExpensePie();
+    renderExpenses();
     toast('Expense updated');
   }
 });

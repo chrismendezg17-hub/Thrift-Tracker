@@ -978,12 +978,24 @@ function groupSales(period){
     sales.forEach(s=>{if(!s.date)return; const dt=new Date(s.date); if(dt.getFullYear()===now.getFullYear()) map[dt.getMonth()]+=Number((s.total ?? s.price) || 0)}); data=map; }
   return {labels,data};
 }
-function renderTotalSales(){
-  const sel = $('#periodSelect'); const period = sel ? sel.value : 'month';
-  const { data } = groupSales(period);
-  const total = (data || []).reduce((a,b)=>a + Number(b || 0), 0);
-  $('#totalSales').textContent = money(total);
+function renderTotalSales() {
+  try {
+    const sel = document.querySelector('#periodSelect');
+    const period = sel && sel.value ? sel.value : 'month';
+
+    const gs = typeof groupSales === 'function' ? groupSales(period) : { data: [] };
+    const arr = (gs && Array.isArray(gs.data)) ? gs.data : [];
+    const total = arr.reduce((a, b) => a + (Number.isFinite(Number(b)) ? Number(b) : 0), 0);
+
+    const el = document.getElementById('totalSales');
+    if (el) el.textContent = money(total);
+  } catch (e) {
+    console.error('renderTotalSales failed:', e);
+    const el = document.getElementById('totalSales');
+    if (el) el.textContent = '$0.00';
+  }
 }
+
 function renderSalesChart(){
   const el=$('#salesChart'); if(!el) return;
   if(typeof Chart==='undefined'){ console.warn('Chart.js not loaded; skipping sales chart'); return; }
@@ -1079,6 +1091,17 @@ function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(re
 
 window.addEventListener('load', tryRenderAll);
 document.addEventListener('DOMContentLoaded', ()=>{ updateToolbarVisibility(); });
+
+// Render the dollar figure as soon as the DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  renderTotalSales();    // ensure number shows even if charts aren’t ready yet
+});
+
+// Keep the existing onload render, but also update after any potential async loads
+window.addEventListener('load', () => {
+  renderTotalSales();    // force a second pass once everything is loaded
+});
+
 
 </script>
 

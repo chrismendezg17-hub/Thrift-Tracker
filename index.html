@@ -9,7 +9,7 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 
-<!-- Chart.js primary + fallback -->
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
 <script>
 if (typeof Chart === 'undefined') {
@@ -26,6 +26,7 @@ if (typeof Chart === 'undefined') {
     --bg:#0b0f14; --surface:#0f1622; --card:#111924; --line:#1f2a3a;
     --ink:#dbe7ff; --muted:#8aa0c7; --accent:#5bbcff;
     --good:#34d399; --warn:#fbbf24; --bad:#ef4444; --radius:14px;
+    --pill-yellow:#6d530f; --pill-green:#1b6f52;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -42,11 +43,13 @@ if (typeof Chart === 'undefined') {
     backdrop-filter:saturate(180%) blur(10px)
   }
   h1{margin:0;font-size:18px;letter-spacing:.3px}
-  .wrap{max-width:1000px;margin:0 auto;padding:16px;padding-bottom:100px}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px;padding-bottom:110px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin:12px 0}
   .row{display:flex;gap:12px;flex-wrap:wrap}
   .row>*{flex:1 1 240px}
   .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);font-size:12px}
+  .pill.await{border-color:var(--pill-yellow); color:#facc15}
+  .pill.sold{border-color:var(--pill-green); color:#34d399}
   .muted{color:var(--muted)}
   .center{text-align:center}
   .big{font-size:28px;font-weight:600;margin:8px 0}
@@ -148,6 +151,7 @@ if (typeof Chart === 'undefined') {
             <option value="item">Item</option>
             <option value="store">Store</option>
             <option value="expense">Expense</option>
+            <option value="supply">Supply</option>
           </select>
         </label>
         <form id="qaForm"></form>
@@ -167,7 +171,7 @@ if (typeof Chart === 'undefined') {
           <select id="invFilter">
             <option value="all">All</option>
             <option value="sold">Sold</option>
-            <option value="unsold">Not Sold Yet</option>
+            <option value="unsold">Awaiting Sale</option>
           </select>
           <button class="btn" id="btnExport">Export Backup</button>
           <label class="btn" for="backupFile" style="display:inline-block;text-align:center;cursor:pointer">Import Backup</label>
@@ -176,7 +180,10 @@ if (typeof Chart === 'undefined') {
         <div class="card" style="overflow:auto">
           <table id="invTable">
             <thead>
-              <tr><th>Item</th><th>Store</th><th>Bought</th><th>Listed</th><th>Sold</th><th>COG</th><th>Sold For</th><th>Status</th></tr>
+              <tr>
+                <th>Item</th><th>Store</th><th>Bought</th><th>Listed</th><th>Sold</th>
+                <th>COG</th><th>Sold For</th><th>Fees</th><th>Shipping</th><th>Status</th>
+              </tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -203,6 +210,48 @@ if (typeof Chart === 'undefined') {
         <ul class="list" id="expenseLog"></ul>
       </div>
     </section>
+
+    <!-- SUPPLIES -->
+    <section id="view-supplies" class="view" role="tabpanel" aria-labelledby="tab-supplies">
+      <div class="card">
+        <div class="row" style="align-items:end">
+          <h2 style="margin:0;flex:1 1 auto">Supplies</h2>
+          <label style="max-width:300px">
+            Quick Buy
+            <select id="quickBuy">
+              <option value="">Select a supply to buy…</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Supply Name<input type="text" id="sup_name" placeholder="e.g. Poly mailers"></label>
+          <label>Date Ordered<input type="date" id="sup_date" value=""></label>
+          <label>Amount/Qty<input type="number" id="sup_amt" step="1" placeholder="e.g. 100"></label>
+        </div>
+        <div class="row">
+          <label>Status
+            <select id="sup_status">
+              <option value="OK">In Stock</option>
+              <option value="LOW">Low</option>
+              <option value="OUT">Out</option>
+            </select>
+          </label>
+          <label>eBay Link (hidden behind name)<input type="url" id="sup_url" placeholder="https://www.ebay.com/itm/..."></label>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="addSupply">Add Supply</button>
+        </div>
+      </div>
+
+      <div class="card" style="overflow:auto">
+        <table id="supTable">
+          <thead>
+            <tr><th>Supply</th><th>Date Ordered</th><th>Amount/Qty</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <!-- Tabs -->
@@ -212,6 +261,7 @@ if (typeof Chart === 'undefined') {
     <button id="tab-inventory" role="tab" aria-controls="view-inventory">Inventory</button>
     <button id="tab-routes" role="tab" aria-controls="view-routes">Routes</button>
     <button id="tab-expenses" role="tab" aria-controls="view-expenses">Expenses</button>
+    <button id="tab-supplies" role="tab" aria-controls="view-supplies">Supplies</button>
   </nav>
 
   <!-- Bulk Import Stores Modal -->
@@ -246,6 +296,10 @@ if (typeof Chart === 'undefined') {
         <label>Home Longitude <input type="number" id="homeLng" step="0.000001" placeholder="-85.6681"></label>
       </div>
       <div class="row">
+        <label>Marketplace Fee Rate (%) <input type="number" id="feeRate" step="0.1" placeholder="13"></label>
+        <label>Mileage Rate ($/mile) <input type="number" id="mileRate" step="0.01" placeholder="0.67"></label>
+      </div>
+      <div class="row">
         <button class="btn good" id="btnUseLocation">Use My Current Location</button>
         <button class="btn primary" id="btnSaveSettings2">Save Settings</button>
         <button class="btn warn" id="btnClearAll">Clear All Data</button>
@@ -269,20 +323,18 @@ if (typeof Chart === 'undefined') {
 
 <script>
 /* ================= CORE UTILITIES ================= */
-window.$  = sel => document.querySelector(sel);
-window.$$ = sel => Array.from(document.querySelectorAll(sel));
-window.todayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
-window.money = n => { const v = Number(n||0); return (v<0?'- $'+Math.abs(v).toFixed(2):'$'+v.toFixed(2)); };
-window.toast = msg => { try{ let t=document.getElementById('toast'); if(!t){ t=document.createElement('div'); t.id='toast';
+const $  = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const todayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
+const money = n => { const v = Number(n||0); return (v<0?'- $'+Math.abs(v).toFixed(2):'$'+v.toFixed(2)); };
+const toast = msg => { try{ let t=document.getElementById('toast'); if(!t){ t=document.createElement('div'); t.id='toast';
   t.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:8px 12px;border-radius:8px;z-index:9999;opacity:.95';
   document.body.appendChild(t);} t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2000);}catch{} };
-function safe(fn){ try{ fn(); } catch(e){ console.error(e); } }
+const safe = fn => { try{ fn(); } catch(e){ console.error(e); } };
 
-/* Robust storage wrapper */
 function lsGet(key){ try{ return localStorage.getItem(key); } catch { return null; } }
 function lsSet(key,val){ try{ localStorage.setItem(key,val); return true; } catch { return false; } }
 function lsDel(key){ try{ localStorage.removeItem(key); } catch {} }
-
 function readArrLS(key){ try{ const v=JSON.parse(lsGet(key)||'[]'); return Array.isArray(v)?v:[]; } catch { return []; } }
 function uniqBy(arr, keyFn){ const seen=new Set(), out=[]; for(const x of arr){ const k=keyFn(x); if(seen.has(k)) continue; seen.add(k); out.push(x);} return out; }
 
@@ -293,7 +345,10 @@ const mapTTSale = s => { const amt=Number(s.price ?? s.amount ?? 0); return {
 const mapTTExpense = e => ({ id:e.id||('e_'+(e.notes||'')), name:e.item||e.name||e.category||'Expense',
   category:e.category||'Other', amount:Number(e.cost??e.amount??0), notes:e.notes||'', date:(e.date||'').slice(0,10) });
 
-window.store = {
+const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
+
+/* ================= STORAGE ================= */
+const store = {
   get(key, def = []){
     try{
       const raw = lsGet(key);
@@ -314,23 +369,27 @@ window.store = {
   },
   set(key,val){ lsSet(key, JSON.stringify(val)); },
   del(key){ lsDel(key); },
-  all(){ return { items:this.get('items',[]), stores:this.get('stores',[]), sales:this.get('sales',[]), expenses:this.get('expenses',[]) }; }
+  all(){ return { items:this.get('items',[]), stores:this.get('stores',[]), sales:this.get('sales',[]), expenses:this.get('expenses',[]), supplies:this.get('supplies',[]) }; }
 };
 
-/* ================= SETTINGS (single implementation) ================= */
+/* ================= SETTINGS ================= */
 function getSettings(){
-  const def = { home:{lat:null,lng:null}, flags:{showToolbar:false} };
+  const def = { home:{lat:null,lng:null}, flags:{showToolbar:false}, feeRate:0.13, mileRate:0.67 };
   const s = store.get('settings', def);
   return (!s || typeof s !== 'object')
     ? def
     : { home: (s.home&&typeof s.home==='object')?s.home:{lat:null,lng:null},
-        flags:(s.flags&&typeof s.flags==='object')?s.flags:{showToolbar:false} };
+        flags:(s.flags&&typeof s.flags==='object')?s.flags:{showToolbar:false},
+        feeRate:Number.isFinite(Number(s.feeRate))?Number(s.feeRate):0.13,
+        mileRate:Number.isFinite(Number(s.mileRate))?Number(s.mileRate):0.67 };
 }
-function saveSettings(s){ store.set('settings', s); return getSettings(); } // re-read to verify
+function saveSettings(s){ store.set('settings', s); return getSettings(); }
 function loadSettingsUI(){
   const s=getSettings();
   $('#homeLat').value = s.home.lat ?? '';
   $('#homeLng').value = s.home.lng ?? '';
+  $('#feeRate').value = (Number(s.feeRate ?? 0.13) * 100).toString();
+  $('#mileRate').value = (Number(s.mileRate ?? 0.67)).toString();
   const cb=$('#showToolbar'); if (cb) cb.checked = !!s.flags.showToolbar;
 }
 function openSettings(){ const m=$('#modalSettings'); m.inert=false; m.classList.add('active'); m.setAttribute('aria-hidden','false'); $('#homeLat')?.focus?.(); }
@@ -350,18 +409,23 @@ $('#btnSaveSettings2').addEventListener('click', ()=>{
   cur.home = { lat: Number.isFinite(lat)?lat:null, lng: Number.isFinite(lng)?lng:null };
   const cb=$('#showToolbar'); cur.flags = cur.flags || {}; cur.flags.showToolbar = cb ? !!cb.checked : false;
 
+  const feePercent = Number($('#feeRate').value || 13);
+  const mileRate   = Number($('#mileRate').value || 0.67);
+  cur.feeRate  = Number.isFinite(feePercent) ? feePercent/100 : 0.13;
+  cur.mileRate = Number.isFinite(mileRate)   ? mileRate : 0.67;
+
   const after = saveSettings(cur);
   const ok = (after.home.lat === cur.home.lat && after.home.lng === cur.home.lng);
   toast(ok ? 'Settings saved' : 'Could not save settings');
 
   closeSettings();
   renderRoutes();
-  if (typeof updateToolbarVisibility === 'function') updateToolbarVisibility();
+  updateToolbarVisibility();
 });
 
 $('#btnClearAll').addEventListener('click',()=>{
   if(!confirm('Erase all local data? This cannot be undone.')) return;
-  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger'].forEach(k=>store.del(k));
+  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger','supplies'].forEach(k=>store.del(k));
   tryRenderAll(); toast('All data cleared');
 });
 $('#btnUseLocation').addEventListener('click',()=>{
@@ -402,7 +466,7 @@ function renderQA(){
     <div class="row">
       <label>Date<input type="date" id="i_date" value="${todayISO()}"></label>
       <label>Item Title<input type="text" id="i_title" placeholder="Sony DVD player"></label>
-      <label>Purchase Price<input type="number" step="0.01" id="i_price" placeholder="4.99"></label>
+      <label>Cost of Goods ($)<input type="number" step="0.01" id="i_price" placeholder="4.99"></label>
     </div>
     <div class="row">
       <label>Store<input type="text" id="i_store" placeholder="Goodwill Outlet"></label>
@@ -414,6 +478,7 @@ function renderQA(){
         <label>Listed Date<input type="date" id="i_listed"></label>
         <label>Sold Date<input type="date" id="i_sold"></label>
         <label>Sold Price<input type="number" step="0.01" id="i_soldfor"></label>
+        <label>Shipping Cost<input type="number" step="0.01" id="i_ship" placeholder="e.g. 8.95"></label>
       </div>
     </details>`; }
   else if(t==='store'){ qaForm.innerHTML=`
@@ -430,6 +495,18 @@ function renderQA(){
       <label>Longitude (optional)<input type="number" step="0.000001" id="s_lng" placeholder="-85.6681"></label>
     </div>
     <label>Notes<textarea id="s_notes" rows="2"></textarea></label>`; }
+  else if(t==='supply'){ qaForm.innerHTML=`
+    <div class="row">
+      <label>Supply Name<input type="text" id="qa_sup_name" placeholder="Poly mailers"></label>
+      <label>Date Ordered<input type="date" id="qa_sup_date" value="${todayISO()}"></label>
+      <label>Amount/Qty<input type="number" id="qa_sup_amt" step="1" placeholder="100"></label>
+    </div>
+    <div class="row">
+      <label>Status
+        <select id="qa_sup_status"><option value="OK">In Stock</option><option value="LOW">Low</option><option value="OUT">Out</option></select>
+      </label>
+      <label>eBay Link<input type="url" id="qa_sup_url" placeholder="https://www.ebay.com/itm/..."></label>
+    </div>`; }
   else { qaForm.innerHTML=`
     <div class="row">
       <label>Expense Name<input type="text" id="e_name" placeholder="Poly mailers"></label>
@@ -446,19 +523,114 @@ qaType.addEventListener('change',renderQA); renderQA();
 
 $('#qaSave').addEventListener('click', ()=>{
   const data=store.all();
+
   if(qaType.value==='item'){
-    const it={id:'i_'+Date.now(),title:$('#i_title').value.trim(),date:$('#i_date').value||todayISO(),
-      price:Number($('#i_price').value||0),store:$('#i_store').value.trim(),str:Number($('#i_str').value||0),
-      notes:$('#i_notes').value.trim(),listed_date:$('#i_listed').value||null,sold_date:$('#i_sold').value||null,
-      sold_for:$('#i_soldfor').value?Number($('#i_soldfor').value):null};
-    data.items.push(it); store.set('items',data.items); toast('Item saved');
-  } else if(qaType.value==='store'){
+    const id = 'i_' + Date.now();
+    const title = $('#i_title').value.trim();
+    const date  = $('#i_date').value || todayISO();
+    const price = Number($('#i_price').value || 0);
+    const storeName = $('#i_store').value.trim();
+
+    const soldDate = $('#i_sold').value || null;
+    const soldFor  = $('#i_soldfor').value ? Number($('#i_soldfor').value) : null;
+    const shipCost = $('#i_ship') ? Number($('#i_ship').value || 0) : 0;
+
+    const it = {
+      id, title, date, price, store: storeName,
+      str: Number($('#i_str').value || 0),
+      notes: $('#i_notes').value.trim(),
+      listed_date: $('#i_listed').value || null,
+      sold_date: soldDate,
+      sold_for: soldFor
+    };
+
+    // Save item
+    data.items.push(it);
+    store.set('items', data.items);
+
+    // 1) COGS
+    const cogExpense = {
+      id: 'cog_' + id,
+      name: title || 'Cost of Goods',
+      category: 'Cost of Goods',
+      amount: price,
+      notes: storeName ? `COGS for ${title} @ ${storeName}` : `COGS for ${title}`,
+      date
+    };
+    let ex = data.expenses.filter(e => e.id !== cogExpense.id);
+    ex.push(cogExpense);
+
+    // 2) If sold: create sale + estimated fees + optional shipping
+    if (soldDate && Number.isFinite(soldFor)) {
+      // sale
+      const saleRec = {
+        id: 'sale_' + id,
+        title: title || 'Manual sale',
+        date: soldDate,
+        total: soldFor,
+        price: soldFor,
+        store: 'eBay',
+        category: 'Online',
+        notes: `Linked to item ${id}`
+      };
+      const salesNo = store.get('sales', []).filter(s=>s.id!==saleRec.id); salesNo.push(saleRec);
+      store.set('sales', salesNo);
+
+      // fees (est.)
+      const feeRate = Number(getSettings()?.feeRate ?? 0.13);
+      const estFees = Math.max(0, soldFor * feeRate);
+      const feeExp = {
+        id: 'fees_' + id,
+        name: 'eBay Fees (est.)',
+        category: 'eBay Fees',
+        amount: estFees,
+        notes: `~${(feeRate*100).toFixed(1)}% on ${money(soldFor)} (item ${id})`,
+        date: soldDate
+      };
+      ex = ex.filter(e => e.id !== feeExp.id); ex.push(feeExp);
+
+      // shipping (optional)
+      if (Number.isFinite(shipCost) && shipCost > 0) {
+        const shipExp = {
+          id: 'ship_' + id,
+          name: 'Shipping Label',
+          category: 'Shipping',
+          amount: shipCost,
+          notes: `Shipping for ${title} (item ${id})`,
+          date: soldDate
+        };
+        ex = ex.filter(e => e.id !== shipExp.id); ex.push(shipExp);
+      }
+    }
+
+    store.set('expenses', ex);
+    toast(soldDate ? 'Item + sale + expenses saved' : 'Item saved (+ COGS)');
+  }
+
+  else if(qaType.value==='store'){
     const s={id:'s_'+Date.now(),name:$('#s_name').value.trim(),location:$('#s_loc').value.trim(),
       open:$('#s_open').value||null,close:$('#s_close').value||null,
       lat:$('#s_lat').value?Number($('#s_lat').value):null,lng:$('#s_lng').value?Number($('#s_lng').value):null,
       notes:$('#s_notes').value.trim()};
     data.stores.push(s); store.set('stores',data.stores); toast('Store saved');
-  } else {
+  }
+
+  else if(qaType.value==='supply'){
+    const sup = {
+      id: 'sup_' + Date.now(),
+      name: $('#qa_sup_name').value.trim(),
+      date: $('#qa_sup_date').value || todayISO(),
+      amount: Number($('#qa_sup_amt').value || 0),
+      status: $('#qa_sup_status').value || 'OK',
+      url: ($('#qa_sup_url').value || '').trim()
+    };
+    const list = store.get('supplies', []);
+    list.push(sup);
+    store.set('supplies', list);
+    toast('Supply saved');
+  }
+
+  else {
     const e={id:'e_'+Date.now(),name:$('#e_name').value.trim(),category:$('#e_cat').value,
       amount:Number($('#e_amt').value||0),notes:$('#e_notes').value.trim(),date:$('#e_date').value||todayISO()};
     data.expenses.push(e); store.set('expenses',data.expenses); toast('Expense saved');
@@ -468,17 +640,53 @@ $('#qaSave').addEventListener('click', ()=>{
 $('#qaReset').addEventListener('click',renderQA);
 
 /* ================= INVENTORY / EXPENSES ================= */
+function buildLinkedExpenseMaps(){
+  const ex = store.get('expenses', []);
+  const fees = new Map(); const ship = new Map(); const cogs = new Map();
+  for (const e of ex){
+    if (typeof e.id === 'string' && e.id.startsWith('fees_i_')) fees.set(e.id.slice(5), Number(e.amount||0));
+    if (typeof e.id === 'string' && e.id.startsWith('ship_i_')) ship.set(e.id.slice(5), Number(e.amount||0));
+    if (typeof e.id === 'string' && e.id.startsWith('cog_i_'))  cogs.set(e.id.slice(4),  Number(e.amount||0));
+  }
+  return { fees, ship, cogs };
+}
 function renderInventory(){
   const data=store.all(), q=($('#invSearch').value||'').toLowerCase().trim(), f=$('#invFilter').value, tbody=$('#invTable tbody');
   const soldTitles=new Set(data.sales.map(x=>(x.title||'').toLowerCase().trim()));
-  let items=data.items.map(i=>({...i,_sold:(i.sold_for&&i.sold_date)||soldTitles.has((i.title||'').toLowerCase().trim())}));
+  const { fees, ship, cogs } = buildLinkedExpenseMaps();
+
+  let items=data.items.map(i=>{
+    const sold = (i.sold_for && i.sold_date) || soldTitles.has((i.title||'').toLowerCase().trim());
+    return {
+      ...i,
+      _sold: !!sold,
+      _fees: fees.get(i.id)||0,
+      _ship: ship.get(i.id)||0,
+      _cog:  cogs.get(i.id) ?? Number(i.price||0)
+    };
+  });
+
   if(q) items=items.filter(i=>(i.title||'').toLowerCase().includes(q)||(i.store||'').toLowerCase().includes(q));
-  if(f==='sold') items=items.filter(i=>i._sold); if(f==='unsold') items=items.filter(i=>!i._sold);
+  if(f==='sold') items=items.filter(i=>i._sold);
+  if(f==='unsold') items=items.filter(i=>!i._sold);
+
   tbody.innerHTML=items.map(i=>`
-    <tr><td>${i.title||''}</td><td>${i.store||''}</td><td>${i.date||''}</td><td>${i.listed_date||''}</td><td>${i.sold_date||''}</td>
-    <td>${money(i.price)}</td><td>${i.sold_for!=null?money(i.sold_for):''}</td>
-    <td>${i._sold?'<span class="pill" style="border-color:#1b6f52">Sold</span>':'<span class="pill">Not Sold Yet</span>'}</td></tr>`).join('');
+    <tr>
+      <td>${i.title||''}</td>
+      <td>${i.store||''}</td>
+      <td>${i.date||''}</td>
+      <td>${i.listed_date||''}</td>
+      <td>${i.sold_date||''}</td>
+      <td>${money(i._cog)}</td>
+      <td>${i.sold_for!=null?money(i.sold_for):''}</td>
+      <td>${i._fees?money(i._fees):''}</td>
+      <td>${i._ship?money(i._ship):''}</td>
+      <td>${i._sold?'<span class="pill sold">Sold</span>':'<span class="pill await">Awaiting Sale</span>'}</td>
+    </tr>`).join('');
 }
+$('#invSearch').addEventListener('input',renderInventory);
+$('#invFilter').addEventListener('change',renderInventory);
+
 function renderExpenses(){
   const ex=store.get('expenses',[]);
   $('#expenseLog').innerHTML = ex.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
@@ -486,17 +694,85 @@ function renderExpenses(){
       <small class="muted">${e.date}${e.notes?' • '+e.notes:''}</small></li>`).join('');
 }
 
-/* ================= ROUTES (render-as-saved + reorder button) ================= */
+/* ================= SUPPLIES ================= */
+function renderSupplies(){
+  const list = store.get('supplies', []);
+  // Fill Quick Buy dropdown
+  const qb = $('#quickBuy');
+  qb.innerHTML = '<option value="">Select a supply to buy…</option>' +
+    list.filter(s=>s.url).map(s=>`<option value="${encodeURIComponent(s.url)}">${s.name}</option>`).join('');
+  qb.onchange = () => {
+    const val = qb.value; if (!val) return;
+    const url = decodeURIComponent(val);
+    window.open(url, '_blank','noopener');
+    qb.value = '';
+  };
+
+  // Table
+  const tbody = $('#supTable tbody');
+  tbody.innerHTML = list.map(s=>`
+    <tr data-id="${s.id}">
+      <td>${s.url?`<a href="${s.url}" target="_blank" rel="noopener">${s.name||''}</a>`:(s.name||'')}</td>
+      <td>${s.date||''}</td>
+      <td>${Number.isFinite(Number(s.amount))?s.amount:''}</td>
+      <td>
+        <select class="sup-status">
+          <option value="OK"${s.status==='OK'?' selected':''}>In Stock</option>
+          <option value="LOW"${s.status==='LOW'?' selected':''}>Low</option>
+          <option value="OUT"${s.status==='OUT'?' selected':''}>Out</option>
+        </select>
+      </td>
+      <td><button class="btn ghost sup-del">Delete</button></td>
+    </tr>
+  `).join('');
+
+  // Bind inline status + delete
+  tbody.querySelectorAll('select.sup-status').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const tr = e.target.closest('tr[data-id]'); const id = tr.getAttribute('data-id');
+      const arr = store.get('supplies', []);
+      const idx = arr.findIndex(x=>x.id===id); if (idx<0) return;
+      arr[idx].status = e.target.value;
+      store.set('supplies', arr);
+      toast('Supply updated');
+    });
+  });
+  tbody.querySelectorAll('button.sup-del').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const tr = e.target.closest('tr[data-id]'); const id = tr.getAttribute('data-id');
+      if (!confirm('Delete this supply?')) return;
+      const arr = store.get('supplies', []).filter(x=>x.id!==id);
+      store.set('supplies', arr);
+      renderSupplies();
+      toast('Supply removed');
+    });
+  });
+}
+$('#addSupply').addEventListener('click', ()=>{
+  const sup = {
+    id: 'sup_' + Date.now(),
+    name: $('#sup_name').value.trim(),
+    date: $('#sup_date').value || todayISO(),
+    amount: Number($('#sup_amt').value || 0),
+    status: $('#sup_status').value || 'OK',
+    url: ($('#sup_url').value || '').trim()
+  };
+  const list = store.get('supplies', []);
+  list.push(sup);
+  store.set('supplies', list);
+  $('#sup_name').value = ''; $('#sup_amt').value = ''; $('#sup_url').value = '';
+  renderSupplies();
+  toast('Supply added');
+});
+
+/* ================= ROUTES ================= */
 function haversine(lat1,lon1,lat2,lon2){
   const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
   const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
-
-/* Render exactly in the saved order */
 function renderRoutes(){
   const stores = store.get('stores', []);
-  // ensure IDs exist once
   let mutated=false;
   for(const st of stores){ if(!st.id){ st.id='s_'+Math.random().toString(36).slice(2); mutated=true; } }
   if (mutated) store.set('stores', stores);
@@ -519,7 +795,19 @@ function renderRoutes(){
   }).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store, or use “Bulk Import Stores”.</li>';
 }
 
-/* Order: sort by open, then move nearest-to-Home to END, save, re-render */
+function totalRouteMiles(home, stores){
+  let miles = 0;
+  let prev = { lat: home.lat, lng: home.lng };
+  for (const s of stores) {
+    if (Number.isFinite(s.lat) && Number.isFinite(s.lng)) {
+      miles += haversine(prev.lat, prev.lng, s.lat, s.lng) * 0.621371; // km -> miles
+      prev = { lat: s.lat, lng: s.lng };
+    }
+  }
+  return miles;
+}
+
+/* Order button: sort by open time, final stop nearest home; add mileage expense */
 function orderRouteWithFinalNearestHome(){
   const s = getSettings();
   const home = s?.home || {};
@@ -529,7 +817,6 @@ function orderRouteWithFinalNearestHome(){
   if (!stores.length) { toast('No stores to reorder'); return; }
 
   stores.sort((a,b)=>(a.open||'99:99').localeCompare(b.open||'99:99'));
-
   const withDists = stores.map((st,i)=>{
     const lat = Number(st.lat), lng = Number(st.lng);
     const d = (Number.isFinite(lat)&&Number.isFinite(lng)) ? haversine(home.lat, home.lng, lat, lng) : Infinity;
@@ -542,13 +829,33 @@ function orderRouteWithFinalNearestHome(){
     store.set('stores', stores);
     renderRoutes();
     toast(`Final stop set to: ${closest.name || 'Store'}`);
+
+    // Mileage expense for today
+    const miles = totalRouteMiles(home, stores);
+    const rate  = Number(s?.mileRate ?? 0.67);
+    const amt   = Math.round(miles * rate * 100) / 100;
+
+    const today = todayISO();
+    const mileExp = {
+      id: 'mile_' + today,          // one entry per day
+      name: 'Mileage',
+      category: 'Mileage',
+      amount: amt,
+      notes: `Auto from route: ${miles.toFixed(1)} mi @ ${money(rate)}/mi`,
+      date: today
+    };
+    const curEx = store.get('expenses', []);
+    const exNo = curEx.filter(e => e.id !== mileExp.id);
+    exNo.push(mileExp);
+    store.set('expenses', exNo);
+    renderExpenses();
   } else {
     toast('Could not compute distances — check store lat/lng','bad');
   }
 }
 document.getElementById('btnOrderRoute').addEventListener('click', orderRouteWithFinalNearestHome);
 
-/* Edit/Delete */
+/* Edit/Delete routes */
 document.getElementById('routeList').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-id]'); if (!li) return;
   const id = li.getAttribute('data-id');
@@ -579,7 +886,7 @@ document.getElementById('routeList').addEventListener('click', (e) => {
   }
 });
 
-/* ================= BULK IMPORT (Apple Maps URLs or CSV) ================= */
+/* ================= BULK IMPORT STORES (URLs or CSV) ================= */
 function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
   const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'')); const split=line=>{const out=[];let cur='',q=false;
     for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=='\\')) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;}
@@ -740,14 +1047,13 @@ $('#btnExport').addEventListener('click',()=>{
 $('#backupFile').addEventListener('change',e=>{
   const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();
   r.onload=()=>{try{const o=JSON.parse(r.result);
-    ['items','expenses','stores','sales','settings'].forEach(k=>{if(o[k]) store.set(k,o[k]);});
+    ['items','expenses','stores','sales','settings','supplies'].forEach(k=>{if(o[k]) store.set(k,o[k]);});
     toast('Backup imported'); tryRenderAll();
   }catch{toast('Invalid backup file','bad');}};
   r.readAsText(f);
 });
 
 /* ================= EBAY SYNC TOOLBAR (optional) ================= */
-const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
 function injectEbayControls() {
   if (document.getElementById('ebay-sync-toolbar')) return;
   const bar=document.createElement('div');
@@ -769,12 +1075,11 @@ function updateToolbarVisibility() {
 }
 
 /* ================= RENDER / BOOTSTRAP ================= */
-function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); }
-window.addEventListener('load', tryRenderAll);
+function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); safe(renderSupplies); }
 
-document.addEventListener('DOMContentLoaded', async ()=>{
-  updateToolbarVisibility();
-});
+window.addEventListener('load', tryRenderAll);
+document.addEventListener('DOMContentLoaded', ()=>{ updateToolbarVisibility(); });
+
 </script>
 
 <!-- PWA (optional) -->

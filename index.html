@@ -338,6 +338,9 @@ function lsDel(key){ try{ localStorage.removeItem(key); } catch {} }
 function readArrLS(key){ try{ const v=JSON.parse(lsGet(key)||'[]'); return Array.isArray(v)?v:[]; } catch { return []; } }
 function uniqBy(arr, keyFn){ const seen=new Set(), out=[]; for(const x of arr){ const k=keyFn(x); if(seen.has(k)) continue; seen.add(k); out.push(x);} return out; }
 
+const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
+
+/* ================= STORAGE ================= */
 const mapTTSale = s => { const amt=Number(s.price ?? s.amount ?? 0); return {
   id:s.id || ('s_'+(s.orderId||'')), title:s.item || s.title || 'eBay order', date:(s.date||'').slice(0,10),
   price:amt, total:amt, store:s.store||'eBay', notes:s.notes||'', qty:s.qty??1, category:s.category||'Online'
@@ -345,9 +348,6 @@ const mapTTSale = s => { const amt=Number(s.price ?? s.amount ?? 0); return {
 const mapTTExpense = e => ({ id:e.id||('e_'+(e.notes||'')), name:e.item||e.name||e.category||'Expense',
   category:e.category||'Other', amount:Number(e.cost??e.amount??0), notes:e.notes||'', date:(e.date||'').slice(0,10) });
 
-const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
-
-/* ================= STORAGE ================= */
 const store = {
   get(key, def = []){
     try{
@@ -384,6 +384,41 @@ function getSettings(){
         mileRate:Number.isFinite(Number(s.mileRate))?Number(s.mileRate):0.67 };
 }
 function saveSettings(s){ store.set('settings', s); return getSettings(); }
+
+/* ================= LABEL NORMALIZATION / CATEGORY REMAP ================= */
+const HIDE_EXPENSE_CATEGORIES = new Set(['WITHDRAWAL']);
+function prettifyLabel(s){
+  return String(s || '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+function normalizeExpensesInPlace() {
+  const raw = store.get('expenses', []);
+  const out = [];
+  for (const e of Array.isArray(raw) ? raw : []) {
+    const amount = Number(e?.amount ?? e?.cost ?? 0) || 0;
+    const date   = String(e?.date ?? '');
+    const notes  = String(e?.notes ?? '');
+    const name   = String(e?.name ?? e?.item ?? 'Expense');
+    let catRaw   = String(e?.category ?? 'Other').toUpperCase();
+
+    if (catRaw === 'WITHDRAWAL') continue;           // skip payouts to bank
+    if (catRaw === 'PURCHASE') catRaw = 'COST OF GOODS';
+    if (catRaw === 'SHIPPING_LABEL') catRaw = 'SHIPPING';
+    if (catRaw === 'NON_SALE_CHARGE') catRaw = 'OTHER FEES';
+
+    const category = prettifyLabel(catRaw);          // pretty for UI
+    out.push({ ...e, amount, date, notes, name, category });
+  }
+  store.set('expenses', out);
+}
+
+/* ================= MODALS (ARIA-safe with inert) ================= */
+function openModal(id){ const m=$(id); if(!m) return; m.inert=false; m.classList.add('active'); m.setAttribute('aria-hidden','false'); }
+function closeModal(id){ const m=$(id); if(!m) return; document.activeElement?.blur?.(); m.classList.remove('active'); m.setAttribute('aria-hidden','true'); m.inert=true; }
+
+/* ================= SETTINGS UI ================= */
 function loadSettingsUI(){
   const s=getSettings();
   $('#homeLat').value = s.home.lat ?? '';
@@ -392,12 +427,12 @@ function loadSettingsUI(){
   $('#mileRate').value = (Number(s.mileRate ?? 0.67)).toString();
   const cb=$('#showToolbar'); if (cb) cb.checked = !!s.flags.showToolbar;
 }
-function openSettings(){ const m=$('#modalSettings'); m.inert=false; m.classList.add('active'); m.setAttribute('aria-hidden','false'); $('#homeLat')?.focus?.(); }
-function closeSettings(){ const m=$('#modalSettings'); document.activeElement?.blur?.(); m.classList.remove('active'); m.setAttribute('aria-hidden','true'); m.inert=true; $('#btnSettings')?.focus?.(); }
+function openSettings(){ loadSettingsUI(); openModal('#modalSettings'); $('#homeLat')?.focus?.(); }
+function closeSettings(){ closeModal('#modalSettings'); $('#btnSettings')?.focus?.(); }
 
-$('#btnSettings').addEventListener('click', ()=>{ loadSettingsUI(); openSettings(); });
+$('#btnSettings').addEventListener('click', openSettings);
 $('#btnCloseSettings').addEventListener('click', closeSettings);
-window.addEventListener('DOMContentLoaded', ()=>{ const m=$('#modalSettings'); if (m) m.inert = true; });
+window.addEventListener('DOMContentLoaded', ()=>{ $('#modalSettings')?.setAttribute('inert',''); $('#modalImportStores')?.setAttribute('inert',''); });
 
 $('#btnSaveSettings2').addEventListener('click', ()=>{
   const latRaw = ($('#homeLat').value ?? '').toString().trim();
@@ -552,7 +587,7 @@ $('#qaSave').addEventListener('click', ()=>{
     const cogExpense = {
       id: 'cog_' + id,
       name: title || 'Cost of Goods',
-      category: 'Cost of Goods',
+      category: 'Cost Of Goods',
       amount: price,
       notes: storeName ? `COGS for ${title} @ ${storeName}` : `COGS for ${title}`,
       date
@@ -604,6 +639,7 @@ $('#qaSave').addEventListener('click', ()=>{
     }
 
     store.set('expenses', ex);
+    normalizeExpensesInPlace();
     toast(soldDate ? 'Item + sale + expenses saved' : 'Item saved (+ COGS)');
   }
 
@@ -633,7 +669,7 @@ $('#qaSave').addEventListener('click', ()=>{
   else {
     const e={id:'e_'+Date.now(),name:$('#e_name').value.trim(),category:$('#e_cat').value,
       amount:Number($('#e_amt').value||0),notes:$('#e_notes').value.trim(),date:$('#e_date').value||todayISO()};
-    data.expenses.push(e); store.set('expenses',data.expenses); toast('Expense saved');
+    data.expenses.push(e); store.set('expenses',data.expenses); normalizeExpensesInPlace(); toast('Expense saved');
   }
   tryRenderAll();
 });
@@ -688,16 +724,35 @@ $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
 
 function renderExpenses(){
-  const ex=store.get('expenses',[]);
-  $('#expenseLog').innerHTML = ex.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-    .map(e=>`<li><strong>${e.name}</strong> — ${money(e.amount)} <span class="muted">(${e.category})</span><br>
-      <small class="muted">${e.date}${e.notes?' • '+e.notes:''}</small></li>`).join('');
+  try {
+    const raw = store.get('expenses', []);
+    const ex = (Array.isArray(raw) ? raw : []).map(e => ({
+      name: String(e?.name ?? 'Expense'),
+      category: String(e?.category ?? 'Other'),
+      amount: Number(e?.amount ?? e?.cost ?? 0) || 0,
+      notes: String(e?.notes ?? ''),
+      date: String(e?.date ?? '')
+    }));
+
+    const html = ex
+      .slice()
+      .sort((a,b) => (b.date||'').localeCompare(a.date||''))
+      .map(e => `<li><strong>${e.name}</strong> — ${money(e.amount)} <span class="muted">(${e.category})</span><br>
+        <small class="muted">${e.date}${e.notes ? ' • ' + e.notes : ''}</small></li>`)
+      .join('');
+
+    const ul = document.getElementById('expenseLog');
+    if (ul) ul.innerHTML = html || '<li class="muted">No expenses yet.</li>';
+  } catch (err) {
+    console.error('renderExpenses failed:', err);
+    const ul = document.getElementById('expenseLog');
+    if (ul) ul.innerHTML = '<li class="muted">No expenses yet.</li>';
+  }
 }
 
 /* ================= SUPPLIES ================= */
 function renderSupplies(){
   const list = store.get('supplies', []);
-  // Fill Quick Buy dropdown
   const qb = $('#quickBuy');
   qb.innerHTML = '<option value="">Select a supply to buy…</option>' +
     list.filter(s=>s.url).map(s=>`<option value="${encodeURIComponent(s.url)}">${s.name}</option>`).join('');
@@ -708,7 +763,6 @@ function renderSupplies(){
     qb.value = '';
   };
 
-  // Table
   const tbody = $('#supTable tbody');
   tbody.innerHTML = list.map(s=>`
     <tr data-id="${s.id}">
@@ -726,7 +780,6 @@ function renderSupplies(){
     </tr>
   `).join('');
 
-  // Bind inline status + delete
   tbody.querySelectorAll('select.sup-status').forEach(sel=>{
     sel.addEventListener('change', e=>{
       const tr = e.target.closest('tr[data-id]'); const id = tr.getAttribute('data-id');
@@ -794,20 +847,17 @@ function renderRoutes(){
     `;
   }).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store, or use “Bulk Import Stores”.</li>';
 }
-
 function totalRouteMiles(home, stores){
   let miles = 0;
   let prev = { lat: home.lat, lng: home.lng };
   for (const s of stores) {
     if (Number.isFinite(s.lat) && Number.isFinite(s.lng)) {
-      miles += haversine(prev.lat, prev.lng, s.lat, s.lng) * 0.621371; // km -> miles
+      miles += haversine(prev.lat, prev.lng, s.lat, s.lng) * 0.621371;
       prev = { lat: s.lat, lng: s.lng };
     }
   }
   return miles;
 }
-
-/* Order button: sort by open time, final stop nearest home; add mileage expense */
 function orderRouteWithFinalNearestHome(){
   const s = getSettings();
   const home = s?.home || {};
@@ -830,14 +880,13 @@ function orderRouteWithFinalNearestHome(){
     renderRoutes();
     toast(`Final stop set to: ${closest.name || 'Store'}`);
 
-    // Mileage expense for today
     const miles = totalRouteMiles(home, stores);
     const rate  = Number(s?.mileRate ?? 0.67);
     const amt   = Math.round(miles * rate * 100) / 100;
 
     const today = todayISO();
     const mileExp = {
-      id: 'mile_' + today,          // one entry per day
+      id: 'mile_' + today,
       name: 'Mileage',
       category: 'Mileage',
       amount: amt,
@@ -848,14 +897,13 @@ function orderRouteWithFinalNearestHome(){
     const exNo = curEx.filter(e => e.id !== mileExp.id);
     exNo.push(mileExp);
     store.set('expenses', exNo);
+    normalizeExpensesInPlace();
     renderExpenses();
   } else {
     toast('Could not compute distances — check store lat/lng','bad');
   }
 }
 document.getElementById('btnOrderRoute').addEventListener('click', orderRouteWithFinalNearestHome);
-
-/* Edit/Delete routes */
 document.getElementById('routeList').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-id]'); if (!li) return;
   const id = li.getAttribute('data-id');
@@ -933,8 +981,8 @@ function dedupeStores(arr, existing){
   const modal=$('#modalImportStores'), openBtn=$('#btnBulkImportStores'), closeBtn=$('#btnCloseImportStores');
   const doBtn=$('#btnDoImportStores'), prevBtn=$('#btnPreviewImportStores'), input=$('#bulkStoresInput'), preview=$('#bulkStoresPreview');
   if(!modal||!openBtn) return;
-  function show(){ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); modal.inert=false; input.focus(); }
-  function hide(){ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); modal.inert=true; preview.textContent=''; $('#btnBulkImportStores').focus(); }
+  function show(){ openModal('#modalImportStores'); input.focus(); }
+  function hide(){ closeModal('#modalImportStores'); preview.textContent=''; $('#btnBulkImportStores').focus(); }
   openBtn.addEventListener('click', show);
   closeBtn.addEventListener('click', hide);
 
@@ -982,11 +1030,9 @@ function renderTotalSales() {
   try {
     const sel = document.querySelector('#periodSelect');
     const period = sel && sel.value ? sel.value : 'month';
-
     const gs = typeof groupSales === 'function' ? groupSales(period) : { data: [] };
     const arr = (gs && Array.isArray(gs.data)) ? gs.data : [];
     const total = arr.reduce((a, b) => a + (Number.isFinite(Number(b)) ? Number(b) : 0), 0);
-
     const el = document.getElementById('totalSales');
     if (el) el.textContent = money(total);
   } catch (e) {
@@ -995,29 +1041,54 @@ function renderTotalSales() {
     if (el) el.textContent = '$0.00';
   }
 }
-
 function renderSalesChart(){
   const el=$('#salesChart'); if(!el) return;
   if(typeof Chart==='undefined'){ console.warn('Chart.js not loaded; skipping sales chart'); return; }
-  const { labels, data } = groupSales($('#periodSelect').value);
+  const { labels, data } = groupSales($('#periodSelect').value || 'month');
   if (window.__charts && window.__charts.sales){ window.__charts.sales.destroy(); }
   const ctx=el.getContext('2d'); window.__charts=window.__charts||{};
   window.__charts.sales=new Chart(ctx,{ type:'bar', data:{labels, datasets:[{label:'Sales', data}]},
     options:{ responsive:true, maintainAspectRatio:false, resizeDelay:200, animation:false,
-      scales:{ y:{ beginAtZero:true, min:0, max:1000, ticks:{ stepSize:500, callback:v=>(v===0||v===500||v===1000)?v:'' } } } }});
+      scales:{ y:{ beginAtZero:true } } }});
 }
 $('#periodSelect').addEventListener('change', ()=>{ safe(renderSalesChart); safe(renderTotalSales); });
 
 function renderExpensePie(){
-  const el=$('#expenseChart'); if(!el) return;
-  const by={}, ex=store.get('expenses',[]); ex.forEach(e=>by[e.category]=(by[e.category]||0)+Number(e.amount||0));
-  const entries=Object.entries(by).sort((a,b)=>b[1]-a[1]);
-  $('#expenseList').innerHTML = entries.map(([k,v])=>`<li><strong>${k}</strong> — ${money(v)}</li>`).join('') || '<li class="muted">No expenses yet.</li>';
-  if(typeof Chart==='undefined'){ console.warn('Chart.js not loaded; skipping expense chart'); return; }
-  if(window.__charts && window.__charts.expense){ window.__charts.expense.destroy(); }
-  const ctx=el.getContext('2d'); window.__charts=window.__charts||{};
-  window.__charts.expense=new Chart(ctx,{ type:'pie', data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1])}]},
-    options:{responsive:true,maintainAspectRatio:false} });
+  const el = document.getElementById('expenseChart');
+  if (!el) return;
+
+  const by = {};
+  for (const e of store.get('expenses', [])) {
+    const rawCat = String(e?.category ?? 'Other').toUpperCase();
+    if (HIDE_EXPENSE_CATEGORIES.has(rawCat)) continue;
+    const k = rawCat;
+    by[k] = (by[k] || 0) + Number(e?.amount ?? e?.cost ?? 0) || 0;
+  }
+  const entries = Object.entries(by).sort((a,b) => b[1] - a[1]);
+  const labelsPretty = entries.map(([k]) => prettifyLabel(k));
+  const values = entries.map(([,v]) => v);
+
+  const list = document.getElementById('expenseList');
+  if (list) {
+    list.innerHTML = entries.length
+      ? entries.map(([k,v]) => `<li><strong>${prettifyLabel(k)}</strong> — ${money(v)}</li>`).join('')
+      : '<li class="muted">No expenses yet.</li>';
+  }
+
+  if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded; skipping expense chart'); return; }
+  if (window.__charts && window.__charts.expense) { window.__charts.expense.destroy(); }
+
+  const ctx = el.getContext('2d');
+  window.__charts = window.__charts || {};
+  window.__charts.expense = new Chart(ctx, {
+    type: 'pie',
+    data: { labels: labelsPretty, datasets: [{ data: values }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { font: { size: 12 } } } }
+    }
+  });
 }
 function renderStoresPerf(){
   const items=store.get('items',[]), sales=store.get('sales',[]);
@@ -1045,6 +1116,7 @@ function importEbayCsv(file){
       date:pickDate(row,['Paid On Date','Sale Date','Date Sold','Sold On','Order date','Paid Date','Date'])
     })).filter(x=>x.total!=null && x.date!=null);
     const all=store.all(); all.sales=sales; store.set('sales',all.sales);
+    normalizeExpensesInPlace();
     toast(`Imported ${sales.length} sales from CSV`); tryRenderAll(); activateView('view-home');
   };
   r.readAsText(file);
@@ -1060,6 +1132,7 @@ $('#backupFile').addEventListener('change',e=>{
   const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();
   r.onload=()=>{try{const o=JSON.parse(r.result);
     ['items','expenses','stores','sales','settings','supplies'].forEach(k=>{if(o[k]) store.set(k,o[k]);});
+    normalizeExpensesInPlace();
     toast('Backup imported'); tryRenderAll();
   }catch{toast('Invalid backup file','bad');}};
   r.readAsText(f);
@@ -1087,21 +1160,13 @@ function updateToolbarVisibility() {
 }
 
 /* ================= RENDER / BOOTSTRAP ================= */
-function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); safe(renderSupplies); }
+function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); safe(renderSupplies); safe(renderExpenses); }
 
-window.addEventListener('load', tryRenderAll);
-document.addEventListener('DOMContentLoaded', ()=>{ updateToolbarVisibility(); });
-
-// Render the dollar figure as soon as the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  renderTotalSales();    // ensure number shows even if charts aren’t ready yet
+  normalizeExpensesInPlace();   // clean categories/labels on boot
+  tryRenderAll();
 });
-
-// Keep the existing onload render, but also update after any potential async loads
-window.addEventListener('load', () => {
-  renderTotalSales();    // force a second pass once everything is loaded
-});
-
+window.addEventListener('load', () => { renderTotalSales(); });
 
 </script>
 

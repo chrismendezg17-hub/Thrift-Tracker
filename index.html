@@ -725,21 +725,36 @@ $('#invFilter').addEventListener('change',renderInventory);
 
 function renderExpenses(){
   try {
-    const raw = store.get('expenses', []);
-    const ex = (Array.isArray(raw) ? raw : []).map(e => ({
-      name: String(e?.name ?? 'Expense'),
-      category: String(e?.category ?? 'Other'),
-      amount: Number(e?.amount ?? e?.cost ?? 0) || 0,
-      notes: String(e?.notes ?? ''),
-      date: String(e?.date ?? '')
-    }));
+    // Ensure every expense has an id so edit/delete works
+    let ex = store.get('expenses', []);
+    let mutated = false;
+    ex = (Array.isArray(ex) ? ex : []).map(e => {
+      if (!e.id) { e.id = 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2); mutated = true; }
+      return {
+        id: e.id,
+        name: String(e?.name ?? 'Expense'),
+        category: String(e?.category ?? 'Other'),
+        amount: Number(e?.amount ?? e?.cost ?? 0) || 0,
+        notes: String(e?.notes ?? ''),
+        date: String(e?.date ?? '')
+      };
+    });
+    if (mutated) store.set('expenses', ex); // persist new ids
 
     const html = ex
       .slice()
       .sort((a,b) => (b.date||'').localeCompare(a.date||''))
-      .map(e => `<li><strong>${e.name}</strong> — ${money(e.amount)} <span class="muted">(${e.category})</span><br>
-        <small class="muted">${e.date}${e.notes ? ' • ' + e.notes : ''}</small></li>`)
-      .join('');
+      .map(e => `
+        <li data-id="${e.id}">
+          <div><strong>${e.name}</strong> — ${money(e.amount)} <span class="muted">(${e.category})</span><br>
+            <small class="muted">${e.date}${e.notes ? ' • ' + e.notes : ''}</small>
+          </div>
+          <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
+            <button class="btn ghost exp-edit" style="padding:6px 10px">✏️ Edit</button>
+            <button class="btn warn exp-del"  style="padding:6px 10px">🗑️ Delete</button>
+          </div>
+        </li>
+      `).join('');
 
     const ul = document.getElementById('expenseLog');
     if (ul) ul.innerHTML = html || '<li class="muted">No expenses yet.</li>';
@@ -749,6 +764,7 @@ function renderExpenses(){
     if (ul) ul.innerHTML = '<li class="muted">No expenses yet.</li>';
   }
 }
+
 
 /* ================= SUPPLIES ================= */
 function renderSupplies(){

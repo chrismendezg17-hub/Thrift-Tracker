@@ -72,11 +72,11 @@ if (typeof Chart === 'undefined') {
   th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
   th{color:var(--muted);font-weight:600}
 
-  /* Fixed-height wrappers for charts to prevent infinite growth */
+  /* Chart wrappers */
   .chart-box, .chart-pie { position: relative; height: 320px; }
   canvas { display:block; width:100% !important; height:100% !important; }
 
-  /* Bottom tab bar */
+  /* Bottom tabs */
   nav.tabs{
     position:fixed;left:0;right:0;bottom:0;z-index:9;
     display:flex;gap:8px;justify-content:space-around;padding:10px 12px;
@@ -95,7 +95,7 @@ if (typeof Chart === 'undefined') {
   .modal .panel{width:min(700px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
   .modal .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 
-  /* Touch action for modern browsers */
+  /* Touch action */
   a,area,button,input,label,select,summary,textarea,[tabindex]{touch-action:manipulation}
 </style>
 </head>
@@ -221,7 +221,7 @@ if (typeof Chart === 'undefined') {
     </section>
   </main>
 
-  <!-- Bottom tabs -->
+  <!-- Tabs -->
   <nav class="tabs" role="tablist" aria-label="Bottom Navigation">
     <button id="tab-home" role="tab" aria-controls="view-home" aria-selected="true">Home</button>
     <button id="tab-quick" role="tab" aria-controls="view-quick">Quick Add</button>
@@ -238,9 +238,7 @@ if (typeof Chart === 'undefined') {
         <button class="btn ghost" id="btnCloseImportStores">Close</button>
       </div>
       <p class="muted" style="margin-top:-6px">
-        Paste one of the following:
-        <br>• Apple Maps place links (one per line). Example: <code>https://maps.apple.com/?q=Goodwill&ll=42.9634,-85.6681</code>
-        <br>• CSV with headers: <code>name,location,open,close,lat,lng</code>
+        Paste Apple Maps links (one per line), or CSV with headers: <code>name,location,open,close,lat,lng</code>
       </p>
       <textarea id="bulkStoresInput" rows="10" placeholder="One URL per line, or CSV…"
         style="width:100%;background:var(--surface);border:1px solid #223146;color:var(--ink);padding:10px;border-radius:12px"></textarea>
@@ -276,12 +274,10 @@ if (typeof Chart === 'undefined') {
             <input type="file" id="ebayCsv" accept=".csv">
           </label>
           <small class="muted">We parse item title, sold price, and date to feed the dashboard.</small>
-
           <label style="display:flex;align-items:center;gap:10px;margin-top:12px">
-            <input type="checkbox" id="showToolbar">
-            Show eBay Sync Toolbar (advanced)
+            <input type="checkbox" id="showToolbar"> Show eBay Sync Toolbar (advanced)
           </label>
-          <small class="muted">Keep off to auto-hide once connected. Turn on if you need manual Connect / Sync / Backfill.</small>
+          <small class="muted">Leave off to auto-hide once connected.</small>
         </div>
       </div>
     </div>
@@ -292,53 +288,24 @@ if (typeof Chart === 'undefined') {
 window.$  = window.$  || (sel => document.querySelector(sel));
 window.$$ = window.$$ || (sel => Array.from(document.querySelectorAll(sel)));
 
-window.todayISO = window.todayISO || function todayISO(){
-  const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10);
-};
-window.money = window.money || function money(n){
-  const v = Number(n || 0); return (v < 0 ? '- $' + Math.abs(v).toFixed(2) : '$' + v.toFixed(2));
-};
-window.toast = window.toast || function toast(msg){
-  try{
-    let t = document.getElementById('toast');
-    if(!t){ t=document.createElement('div'); t.id='toast';
-      t.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:8px 12px;border-radius:8px;z-index:9999;opacity:.95';
-      document.body.appendChild(t);
-    }
-    t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2000);
-  }catch{}
-};
-function readArrLS(key){ try{ const v=JSON.parse(localStorage.getItem(key)||'[]'); return Array.isArray(v)?v:[]; }catch{ return []; } }
-function uniqBy(arr, keyFn){
-  const seen=new Set(), out=[]; for(const x of arr){ const k=keyFn(x); if(seen.has(k)) continue; seen.add(k); out.push(x); } return out;
-}
+window.todayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
+window.money = n => { const v = Number(n||0); return (v<0?'- $'+Math.abs(v).toFixed(2):'$'+v.toFixed(2)); };
+window.toast = msg => { try{ let t=document.getElementById('toast'); if(!t){ t=document.createElement('div'); t.id='toast';
+  t.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:8px 12px;border-radius:8px;z-index:9999;opacity:.95';
+  document.body.appendChild(t);} t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2000);}catch{} };
 
-/* Map backend tt-sales/tt-expenses into UI shapes */
-const mapTTSale = s => {
-  const amt = Number(s.price ?? s.amount ?? 0);
-  return {
-    id: s.id || ('s_' + (s.orderId || '')),
-    title: s.item || s.title || 'eBay order',
-    date: (s.date || '').slice(0,10),
-    price: amt,
-    total: amt,
-    store: s.store || 'eBay',
-    notes: s.notes || '',
-    qty: s.qty ?? 1,
-    category: s.category || 'Online'
-  };
-};
-const mapTTExpense = e => ({
-  id: e.id || ('e_' + (e.notes || '')),
-  name: e.item || e.name || e.category || 'Expense',
-  category: e.category || 'Other',
-  amount: Number(e.cost ?? e.amount ?? 0),
-  notes: e.notes || '',
-  date: (e.date || '').slice(0,10)
-});
+function readArrLS(key){ try{ const v=JSON.parse(localStorage.getItem(key)||'[]'); return Array.isArray(v)?v:[]; }catch{ return []; } }
+function uniqBy(arr, keyFn){ const seen=new Set(), out=[]; for(const x of arr){ const k=keyFn(x); if(seen.has(k)) continue; seen.add(k); out.push(x);} return out; }
 
 /* Storage wrapper that merges manual entries with synced ones */
-window.store = window.store || {
+const mapTTSale = s => { const amt = Number(s.price ?? s.amount ?? 0); return {
+  id:s.id||('s_'+(s.orderId||'')), title:s.item||s.title||'eBay order', date:(s.date||'').slice(0,10),
+  price:amt, total:amt, store:s.store||'eBay', notes:s.notes||'', qty:s.qty??1, category:s.category||'Online'
+};};
+const mapTTExpense = e => ({ id:e.id||('e_'+(e.notes||'')), name:e.item||e.name||e.category||'Expense',
+  category:e.category||'Other', amount:Number(e.cost??e.amount??0), notes:e.notes||'', date:(e.date||'').slice(0,10) });
+
+window.store = {
   get(key, def = []){
     try{
       const raw = localStorage.getItem(key);
@@ -356,44 +323,19 @@ window.store = window.store || {
     }catch{ return def; }
   },
   set(key,val){ localStorage.setItem(key, JSON.stringify(val)); },
-  del(key){ localStorage.removeItem(key); },
-  all(){ return {
-    items: this.get('items',[]),
-    stores: this.get('stores',[]),
-    sales: this.get('sales',[]),
-    expenses: this.get('expenses',[])
-  }; }
+  all(){ return { items:this.get('items',[]), stores:this.get('stores',[]), sales:this.get('sales',[]), expenses:this.get('expenses',[]) }; }
 };
 
-/* Settings helpers */
+/* Settings helpers + ARIA-safe modal */
 function getSettings(){ return store.get('settings', { home:{lat:null,lng:null}, flags:{showToolbar:false} }); }
 function saveSettings(s){ store.set('settings', s); }
+function loadSettings(){ const s=getSettings(); $('#homeLat').value=s.home?.lat ?? ''; $('#homeLng').value=s.home?.lng ?? ''; const cb=$('#showToolbar'); if (cb) cb.checked=!!(s.flags&&s.flags.showToolbar); }
+function openSettings(){ const m=$('#modalSettings'); m.inert=false; m.classList.add('active'); m.setAttribute('aria-hidden','false'); ($('#homeLat')||{}).focus?.(); }
+function closeSettings(){ const m=$('#modalSettings'); document.activeElement?.blur?.(); m.classList.remove('active'); m.setAttribute('aria-hidden','true'); m.inert=true; $('#btnSettings')?.focus?.(); }
 
-/* ===== Settings Modal Logic (single, ARIA-safe) ===== */
-function loadSettings(){
-  const s = getSettings();
-  $('#homeLat').value = s.home?.lat ?? '';
-  $('#homeLng').value = s.home?.lng ?? '';
-  const cb = $('#showToolbar');
-  if (cb) cb.checked = !!(s.flags && s.flags.showToolbar);
-}
-function openSettings(){
-  const m = $('#modalSettings');
-  m.inert = false;
-  m.classList.add('active');
-  m.setAttribute('aria-hidden','false');
-  const lat = $('#homeLat'); if (lat) lat.focus();
-}
-function closeSettings(){
-  const m = $('#modalSettings');
-  if (document.activeElement) document.activeElement.blur();
-  m.classList.remove('active');
-  m.setAttribute('aria-hidden','true');
-  m.inert = true;
-  const opener = $('#btnSettings'); if (opener) opener.focus();
-}
 $('#btnSettings').addEventListener('click',()=>{ loadSettings(); openSettings(); });
 $('#btnCloseSettings').addEventListener('click', closeSettings);
+window.addEventListener('DOMContentLoaded', ()=>{ const m=$('#modalSettings'); if (m) m.inert = true; });
 
 $('#btnSaveSettings2').addEventListener('click',()=>{
   const s = getSettings();
@@ -401,58 +343,37 @@ $('#btnSaveSettings2').addEventListener('click',()=>{
     lat: $('#homeLat').value !== '' ? Number($('#homeLat').value) : null,
     lng: $('#homeLng').value !== '' ? Number($('#homeLng').value) : null
   };
-  const cb = $('#showToolbar');
-  s.flags = s.flags || {};
-  s.flags.showToolbar = cb ? !!cb.checked : false;
-  saveSettings(s);
-  toast('Settings saved');
-  safe(renderRoutes);
-  if (typeof updateToolbarVisibility === 'function') updateToolbarVisibility();
+  const cb = $('#showToolbar'); s.flags = s.flags || {}; s.flags.showToolbar = cb ? !!cb.checked : false;
+  saveSettings(s); toast('Settings saved'); safe(renderRoutes); if (typeof updateToolbarVisibility==='function') updateToolbarVisibility();
 });
 $('#btnClearAll').addEventListener('click',()=>{
   if(!confirm('Erase all local data? This cannot be undone.')) return;
-  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger']
-    .forEach(k => localStorage.removeItem(k));
-  tryRenderAll();
-  toast('All data cleared');
+  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger'].forEach(k=>localStorage.removeItem(k));
+  tryRenderAll(); toast('All data cleared');
 });
 $('#btnUseLocation').addEventListener('click',()=>{
   if(!('geolocation' in navigator)){ toast('Geolocation not supported','bad'); return; }
   toast('Getting your location…');
   navigator.geolocation.getCurrentPosition(
-    function success(pos){
-      const { latitude, longitude } = pos.coords || {};
-      if (typeof latitude === 'number' && typeof longitude === 'number') {
-        $('#homeLat').value = latitude.toFixed(6);
-        $('#homeLng').value = longitude.toFixed(6);
-        const s = getSettings();
-        s.home = { lat:Number($('#homeLat').value), lng:Number($('#homeLng').value) };
-        saveSettings(s);
-        toast('Home location set');
-        safe(renderRoutes);
-      } else {
-        toast('Unable to read GPS','bad');
-      }
+    pos=>{
+      const {latitude,longitude}=pos.coords||{};
+      if(Number.isFinite(latitude)&&Number.isFinite(longitude)){
+        $('#homeLat').value=latitude.toFixed(6); $('#homeLng').value=longitude.toFixed(6);
+        const s=getSettings(); s.home={lat:Number($('#homeLat').value),lng:Number($('#homeLng').value)}; saveSettings(s);
+        toast('Home location set'); safe(renderRoutes);
+      } else { toast('Unable to read GPS','bad'); }
     },
-    function error(err){
-      const reasons = {1:'Permission denied',2:'Position unavailable',3:'Timeout'};
-      toast(`Location error: ${reasons[err.code]||'Unknown'}`,'bad');
-    },
+    err=>{ const reasons={1:'Permission denied',2:'Position unavailable',3:'Timeout'}; toast(`Location error: ${reasons[err.code]||'Unknown'}`,'bad'); },
     { enableHighAccuracy:true, timeout:10000, maximumAge:600000 }
   );
 });
-window.addEventListener('DOMContentLoaded', ()=>{ const m=$('#modalSettings'); if (m) m.inert = true; });
 
-/* ===== Tabs ===== */
-function activateView(id){
-  $$('.view').forEach(v=>v.classList.remove('active'));
-  $('#'+id).classList.add('active');
-  $$('nav.tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected','false'));
-  $(`[aria-controls="${id}"]`).setAttribute('aria-selected','true');
-}
+/* Tabs */
+function activateView(id){ $$('.view').forEach(v=>v.classList.remove('active')); $('#'+id).classList.add('active');
+  $$('nav.tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected','false')); $(`[aria-controls="${id}"]`).setAttribute('aria-selected','true'); }
 $$('nav.tabs [role="tab"]').forEach(btn=>btn.addEventListener('click',()=>activateView(btn.getAttribute('aria-controls'))));
 
-/* ===== Quick Add ===== */
+/* Quick Add */
 const qaType=$('#qaType'), qaForm=$('#qaForm');
 function renderQA(){
   const t=qaType.value;
@@ -525,7 +446,7 @@ $('#qaSave').addEventListener('click', ()=>{
 });
 $('#qaReset').addEventListener('click',renderQA);
 
-/* ===== Inventory ===== */
+/* Inventory */
 function renderInventory(){
   const data=store.all(), q=($('#invSearch').value||'').toLowerCase().trim(), f=$('#invFilter').value, tbody=$('#invTable tbody');
   const soldTitles=new Set(data.sales.map(x=>(x.title||'').toLowerCase().trim()));
@@ -537,10 +458,8 @@ function renderInventory(){
     <td>${money(i.price)}</td><td>${i.sold_for!=null?money(i.sold_for):''}</td>
     <td>${i._sold?'<span class="pill" style="border-color:#1b6f52">Sold</span>':'<span class="pill">Not Sold Yet</span>'}</td></tr>`).join('');
 }
-$('#invSearch').addEventListener('input',renderInventory);
-$('#invFilter').addEventListener('change',renderInventory);
 
-/* ===== Expenses ===== */
+/* Expenses */
 function renderExpenses(){
   const ex=store.get('expenses',[]);
   $('#expenseLog').innerHTML = ex.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
@@ -548,52 +467,30 @@ function renderExpenses(){
       <small class="muted">${e.date}${e.notes?' • '+e.notes:''}</small></li>`).join('');
 }
 
-/* ===== Routes ===== */
+/* ===== ROUTES (render-as-saved + persistent reorder button) ===== */
 function haversine(lat1,lon1,lat2,lon2){
   const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
   const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
+/* Render exactly in the order stored (NO sorting here) */
 function renderRoutes(){
-  const data = store.all();
-  const s = getSettings();
-  const home = s.home || {lat:null,lng:null};
+  const stores = store.get('stores', []);
   const ul = $('#routeList');
 
-  let list = data.stores.slice().map(st => ({ id: st.id || ('s_'+Math.random().toString(36).slice(2)), ...st }));
+  // ensure each store has an id once
+  let assigned=false;
+  for(const st of stores){ if(!st.id){ st.id='s_'+Math.random().toString(36).slice(2); assigned=true; } }
+  if (assigned) store.set('stores', stores);
 
-  const mutated = list.some((st,i) => st.id !== data.stores[i]?.id);
-  if (mutated) store.set('stores', list);
-
-  // Sort by open time first
-  list.sort((a,b)=>(a.open||'23:59').localeCompare(b.open||'23:59'));
-
-  // Move the nearest store to the END (final stop near Home)
-  let movedName = null;
-  if (Number.isFinite(home.lat) && Number.isFinite(home.lng) && list.length){
-    const withDists = list.map((st,i)=>{
-      const lat = Number(st.lat), lng = Number(st.lng);
-      const d = (Number.isFinite(lat) && Number.isFinite(lng))
-        ? haversine(home.lat, home.lng, lat, lng)
-        : Infinity;
-      return { i, d, name: st.name || '' };
-    });
-    const best = withDists.reduce((best,c)=> c.d < best.d ? c : best, {i:-1, d:Infinity, name:''});
-    if (best.i >= 0 && isFinite(best.d)) {
-      const [closest] = list.splice(best.i, 1);
-      list.push(closest);
-      movedName = closest.name || null;
-    }
-  }
-
-  ul.innerHTML = list.map(st=>{
-    const maps = (Number.isFinite(st.lat) && Number.isFinite(st.lng)) ? `https://maps.apple.com/?daddr=${st.lat},${st.lng}` : '';
-    const loc  = st.location ? `<small class="muted">${st.location}</small><br>` : '';
-    const hours= (st.open||st.close) ? `<span class="muted">${st.open||''}${(st.open||st.close)?'–':''}${st.close||''}</span>` : '';
+  ul.innerHTML = stores.map(s=>{
+    const maps = (Number.isFinite(s.lat) && Number.isFinite(s.lng)) ? `https://maps.apple.com/?daddr=${s.lat},${s.lng}` : '';
+    const loc  = s.location ? `<small class="muted">${s.location}</small><br>` : '';
+    const hours= (s.open||s.close) ? `<span class="muted">${s.open||''}${(s.open||s.close)?'–':''}${s.close||''}</span>` : '';
     return `
-      <li data-id="${st.id}">
-        <strong>${st.name||''}</strong> ${hours ? hours : ''}<br>
+      <li data-id="${s.id}">
+        <strong>${s.name||''}</strong> ${hours ? hours : ''}<br>
         ${loc}
         <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
           ${maps ? `<a class="btn ghost" target="_blank" rel="noopener" href="${maps}">Open in Maps</a>` : ''}
@@ -603,14 +500,47 @@ function renderRoutes(){
       </li>
     `;
   }).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store, or use “Bulk Import Stores”.</li>';
-
-  if (movedName) toast(`Final stop set to: ${movedName}`);
 }
-$('#routeList').addEventListener('click', (e) => {
-  const li = e.target.closest('li[data-id]'); if (!li) return;
+
+/* Button: Sort by open time, then move nearest-to-Home to END, SAVE, re-render */
+function orderRouteWithFinalNearestHome(){
+  const s = getSettings();
+  const home = s?.home || {};
+  if (!Number.isFinite(home.lat) || !Number.isFinite(home.lng)) { toast('Set your Home location in Settings first','bad'); return; }
+
+  const stores = store.get('stores', []).slice();
+  if (!stores.length) { toast('No stores to reorder'); return; }
+
+  // Sort by opening time (nulls last)
+  stores.sort((a,b)=>(a.open||'99:99').localeCompare(b.open||'99:99'));
+
+  // Find nearest to Home
+  const withDists = stores.map((st,i)=>{
+    const lat = Number(st.lat), lng = Number(st.lng);
+    const d = (Number.isFinite(lat) && Number.isFinite(lng)) ? haversine(home.lat, home.lng, lat, lng) : Infinity;
+    return { i, d, name: st.name || '' };
+  });
+  const best = withDists.reduce((best,c)=> c.d < best.d ? c : best, {i:-1, d:Infinity, name:''});
+  if (best.i >= 0 && isFinite(best.d)) {
+    const [closest] = stores.splice(best.i, 1);
+    stores.push(closest);
+    store.set('stores', stores);  // persist new order
+    renderRoutes();
+    toast(`Final stop set to: ${closest.name || 'Store'}`);
+  } else {
+    toast('Could not compute distances — check store lat/lng','bad');
+  }
+}
+document.getElementById('btnOrderRoute').addEventListener('click', orderRouteWithFinalNearestHome);
+
+/* Edit/Delete for routes */
+document.getElementById('routeList').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-id]');
+  if (!li) return;
   const id = li.getAttribute('data-id');
   const stores = store.get('stores', []);
-  const idx = stores.findIndex(s=>s.id===id); if (idx < 0) return;
+  const idx = stores.findIndex(s=>s.id===id);
+  if (idx < 0) return;
 
   if (e.target.closest('.route-edit')) {
     const st = stores[idx];
@@ -622,17 +552,24 @@ $('#routeList').addEventListener('click', (e) => {
     const lngIn = prompt('Longitude:', st.lng ?? '') ?? (st.lng ?? '');
     const lat = latIn === '' ? null : Number(latIn);
     const lng = lngIn === '' ? null : Number(lngIn);
-    stores[idx] = {...st, name, location, open:open||null, close:close||null,
-      lat:Number.isFinite(lat)?lat:null, lng:Number.isFinite(lng)?lng:null};
-    store.set('stores', stores); toast('Store updated'); renderRoutes(); return;
+    stores[idx] = { ...st, name, location, open:open||null, close:close||null,
+      lat:Number.isFinite(lat)?lat:null, lng:Number.isFinite(lng)?lng:null };
+    store.set('stores', stores);
+    toast('Store updated');
+    renderRoutes();
+    return;
   }
   if (e.target.closest('.route-del')) {
-    if (confirm('Delete this store?')) { stores.splice(idx, 1); store.set('stores', stores); toast('Store removed'); renderRoutes(); }
+    if (confirm('Delete this store?')) {
+      stores.splice(idx, 1);
+      store.set('stores', stores);
+      toast('Store removed');
+      renderRoutes();
+    }
   }
 });
-$('#btnOrderRoute').addEventListener('click', renderRoutes);
 
-/* ===== Bulk Import Stores ===== */
+/* Bulk Import Stores (Apple Maps URLs or CSV, with optional geocode) */
 function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
   const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'')); const split=line=>{const out=[];let cur='',q=false;
     for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=='\\')) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;}
@@ -660,7 +597,7 @@ function parseAppleMapsUrl(line){
   }catch{ return null; }
 }
 function parseStoreRow(row){
-  const pick = (o, keys) => { for (const k of keys) if (o[k]!=null && String(o[k]).trim()!=='') return String(o[k]).trim(); return ''; };
+  const pick=(o,ks)=>{for(const k of ks){ if(o[k]!=null && String(o[k]).trim()!=='') return String(o[k]).trim(); } return '';};
   const name = pick(row, ['name','store','title']);
   const location = pick(row, ['location','address','addr']);
   const open = pick(row, ['open','opens','start','open_time']);
@@ -669,30 +606,25 @@ function parseStoreRow(row){
   const lngS = pick(row, ['lng','lon','long','longitude']);
   const lat = latS ? Number(latS) : null;
   const lng = lngS ? Number(lngS) : null;
-  return { id:'s_'+Math.random().toString(36).slice(2), name: name || '(Store)', location, open:open||null, close:close||null,
+  return { id:'s_'+Math.random().toString(36).slice(2), name:name||'(Store)', location, open:open||null, close:close||null,
            lat:Number.isFinite(lat)?lat:null, lng:Number.isFinite(lng)?lng:null, notes:'' };
 }
 function dedupeStores(arr, existing){
-  const out=[], seen=new Set(); function key(s){
-    if (Number.isFinite(s.lat) && Number.isFinite(s.lng)) return `geo:${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
-    return `nl:${(s.name||'').toLowerCase().trim()}|${(s.location||'').toLowerCase().trim()}`;
-  }
+  const out=[], seen=new Set();
+  function key(s){ return (Number.isFinite(s.lat)&&Number.isFinite(s.lng)) ? `geo:${s.lat.toFixed(5)},${s.lng.toFixed(5)}`
+    : `nl:${(s.name||'').toLowerCase().trim()}|${(s.location||'').toLowerCase().trim()}`; }
   const all=(existing||[]).concat(arr);
   for(const s of all){ const k=key(s); if(seen.has(k)) continue; seen.add(k); out.push(s); }
   return out;
 }
-(function initBulkImportStores(){
-  const modal   = $('#modalImportStores');
-  const openBtn = $('#btnBulkImportStores');
-  const closeBtn= $('#btnCloseImportStores');
-  const doBtn   = $('#btnDoImportStores');
-  const prevBtn = $('#btnPreviewImportStores');
-  const input   = $('#bulkStoresInput');
-  const preview = $('#bulkStoresPreview');
-  if (!modal || !openBtn) return;
 
-  function show(){ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); modal.inert = false; input.focus(); }
-  function hide(){ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); modal.inert = true; preview.textContent=''; $('#btnBulkImportStores').focus(); }
+(function initBulkImportStores(){
+  const modal=$('#modalImportStores'), openBtn=$('#btnBulkImportStores'), closeBtn=$('#btnCloseImportStores');
+  const doBtn=$('#btnDoImportStores'), prevBtn=$('#btnPreviewImportStores'), input=$('#bulkStoresInput'), preview=$('#bulkStoresPreview');
+  if(!modal||!openBtn) return;
+
+  function show(){ modal.classList.add('active'); modal.setAttribute('aria-hidden','false'); modal.inert=false; input.focus(); }
+  function hide(){ modal.classList.remove('active'); modal.setAttribute('aria-hidden','true'); modal.inert=true; preview.textContent=''; $('#btnBulkImportStores').focus(); }
 
   openBtn.addEventListener('click', show);
   closeBtn.addEventListener('click', hide);
@@ -700,63 +632,26 @@ function dedupeStores(arr, existing){
   function parseBulk(text){
     const lines = text.split('\n').map(s=>s.trim()).filter(Boolean);
     const first = lines[0] || '';
-    const isLikelyUrl     = /^https?:\/\//i.test(first);
+    const isLikelyUrl = /^https?:\/\//i.test(first);
     const looksCsvHeader  = /^(name|store|title|location|address|lat|lng)\s*,/i.test(first);
     const looksCsv        = !isLikelyUrl && (looksCsvHeader || (lines.length > 1 && first.includes(',')));
-    let parsed = [];
-    if (looksCsv) {
-      const rows = parseCsvLoose(text);
-      parsed = rows.map(parseStoreRow);
-    } else {
-      parsed = lines.map(l => parseAppleMapsUrl(l) || { __skip:true }).filter(o => !o.__skip);
-      if (!parsed.length && lines.some(l=>l.includes(',')) && !lines.every(l=>/^https?:\/\//i.test(l))) {
-        const rows = lines.filter(l => !/^https?:\/\//i.test(l)).map(l => {
-          const [name='', location='', open='', close='', lat='', lng=''] = l.split(',');
-          return { name, location, open, close, lat, lng };
-        });
-        parsed = rows.map(parseStoreRow);
-      }
-    }
+    let parsed=[];
+    if(looksCsv){ const rows=parseCsvLoose(text); parsed=rows.map(parseStoreRow); }
+    else { parsed = lines.map(l=>parseAppleMapsUrl(l) || {__skip:true}).filter(o=>!o.__skip); }
     return parsed;
   }
 
   prevBtn.addEventListener('click', ()=>{
     const arr = parseBulk(input.value);
-    const missing = arr.filter(s => !(Number.isFinite(s.lat) && Number.isFinite(s.lng)) && (s.name || s.location)).length;
-    const msg = arr.length ? `Will import ${arr.length} store${arr.length===1?'':'s'}` + (missing ? ` • ${missing} will be geocoded` : '') : 'Nothing detected.';
-    preview.textContent = msg;
+    const missing = arr.filter(s => !(Number.isFinite(s.lat)&&Number.isFinite(s.lng)) && (s.name||s.location)).length;
+    preview.textContent = arr.length ? `Will import ${arr.length} store${arr.length===1?'':'s'}` + (missing?` • ${missing} need coords`:'') : 'Nothing detected.';
   });
-
-  async function geocodeMissing(arr){
-    const need = arr.filter(s => !(Number.isFinite(s.lat) && Number.isFinite(s.lng)) && (s.name || s.location));
-    if (!need.length) return arr;
-    try{
-      const res = await fetch(BACKEND_URL + '/geocode-batch', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ items: need.map(s => ({ id:s.id, name:s.name||'', location:s.location||'' })) })
-      });
-      if (!res.ok) throw new Error('geocode-batch HTTP ' + res.status);
-      const data = await res.json();
-      const map = new Map((data.results || []).map(r => [r.id, r]));
-      for (const s of arr) {
-        const r = map.get(s.id);
-        if (r && r.ok && Number.isFinite(r.lat) && Number.isFinite(r.lng)) { s.lat=r.lat; s.lng=r.lng; }
-      }
-    }catch(e){ console.warn('Geocoding failed, continuing without coords:', e); }
-    return arr;
-  }
 
   doBtn.addEventListener('click', async ()=>{
     const arr = parseBulk(input.value);
-    if (!arr.length) { toast('Nothing to import','bad'); return; }
-    toast('Importing…');
-    await geocodeMissing(arr);
-    const all = store.all();
-    const merged = dedupeStores(arr, all.stores);
-    store.set('stores', merged);
-    toast(`Imported ${arr.length} store${arr.length===1?'':'s'}`);
-    renderRoutes();
-    hide();
+    if(!arr.length){ toast('Nothing to import','bad'); return; }
+    const all = store.all(); const merged = dedupeStores(arr, all.stores);
+    store.set('stores', merged); toast(`Imported ${arr.length} store${arr.length===1?'':'s'}`); renderRoutes(); hide();
   });
 })();
 
@@ -813,7 +708,7 @@ function renderExpensePie(){
     options:{responsive:true,maintainAspectRatio:false} });
 }
 
-/* ===== Stores Performance ===== */
+/* Stores Performance */
 function renderStoresPerf(){
   const items = store.get('items', []);
   const sales = store.get('sales', []);
@@ -836,7 +731,7 @@ function renderStoresPerf(){
     </li>`).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
 
-/* ===== eBay CSV import ===== */
+/* CSV import */
 function pickNumber(o,ks){ for(const k of ks){ if(k in o && o[k]!=='' && o[k]!=null){const v=String(o[k]).replace(/[^0-9.\-]/g,''); if(v!==''&&!Number.isNaN(Number(v))) return Number(v);} } return null; }
 function pickDate(o,ks){ for(const k of ks){ if(k in o && o[k]){const d=new Date(o[k]); if(!isNaN(d)) return d.toISOString();} } return null; }
 function pickText(o,ks){ for(const k of ks){ if(k in o && o[k]) return String(o[k]); } return ''; }
@@ -857,10 +752,11 @@ function importEbayCsv(file){
 $('#btnImportEbay').addEventListener('click',()=>$('#ebayCsv').click());
 $('#ebayCsv').addEventListener('change',e=>{const f=e.target.files?.[0]; if(f) importEbayCsv(f);});
 
-/* ===== Backup ===== */
+/* Backup */
 $('#btnExport').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify(store.all(),null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`scale-flipz-backup-${Date.now()}.json`; a.click(); URL.revokeObjectURL(a.href);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`scale-flipz-backup-${Date.now()}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
 });
 $('#backupFile').addEventListener('change',e=>{
   const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();
@@ -871,11 +767,11 @@ $('#backupFile').addEventListener('change',e=>{
   r.readAsText(f);
 });
 
-/* ===== Safe render helpers ===== */
+/* Safe render helpers */
 function safe(fn){ try{ fn(); } catch(e){ console.error(e); } }
 function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); }
 
-/* Initial render AFTER page fully loads (ensures Chart.js ready if available) */
+/* Initial render */
 window.addEventListener('load', tryRenderAll);
 </script>
 
@@ -883,13 +779,12 @@ window.addEventListener('load', tryRenderAll);
 /* --------------- CONFIG --------------- */
 const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
 
-/* --------------- SIMPLE STORAGE HELPERS --------------- */
+/* --------------- SYNC HELPERS --------------- */
 function readArr(key){ try{ const v=JSON.parse(localStorage.getItem(key) ?? '[]'); return Array.isArray(v) ? v : []; }catch{ return []; } }
 function writeArr(key, arr){ localStorage.setItem(key, JSON.stringify(Array.isArray(arr) ? arr : [])); }
 const keySale = r => [r.notes, r.date, r.price].join('|');
 const keyExp  = r => [r.notes, r.date, r.cost].join('|');
 
-/* Merge pulled data into tt-sales / tt-expenses without dupes */
 function mergeIntoLocalStorage(sales, expenses) {
   const existingSales = readArr('tt-sales');
   const existingExp   = readArr('tt-expenses');
@@ -928,23 +823,13 @@ function splitLedger(ledger) {
       let item = x.title || String(x.kind || 'Expense');
       let category = x.kind || 'Other';
       if (isStoreSubscription(x)) { item = 'eBay Store Subscription'; category = 'Other'; }
-      return {
-        date: String(x.date || '').slice(0,10),
-        vendor: 'eBay',
-        category,
-        item,
-        cost: toNum(x.amount),
-        notes: x.notes || ''
-      };
+      return { date:String(x.date||'').slice(0,10), vendor:'eBay', category, item, cost:toNum(x.amount), notes:x.notes || '' };
     });
   const seen = new Set();
   expenses = expenses.filter(e => {
     let key;
-    if (e.item === 'eBay Store Subscription' && e.cost >= 7.90 && e.cost <= 8.00) {
-      key = 'sub|' + (e.date || '').slice(0,7);
-    } else {
-      key = [e.item, e.date, e.cost].join('|');
-    }
+    if (e.item === 'eBay Store Subscription' && e.cost >= 7.90 && e.cost <= 8.00) key = 'sub|' + (e.date || '').slice(0,7);
+    else key = [e.item, e.date, e.cost].join('|');
     if (seen.has(key)) return false; seen.add(key); return true;
   });
   return { sales, expenses };
@@ -988,46 +873,27 @@ async function pullCombinedOrOrders() {
   rerenderIfAvailable();
   updateToolbarVisibility();
 }
-async function syncNow() {
-  try { await fetchJSON(BACKEND_URL + '/sync-now'); } catch (e) {}
-  await pullCombinedOrOrders();
-}
+async function syncNow() { try { await fetchJSON(BACKEND_URL + '/sync-now'); } catch {} await pullCombinedOrOrders(); }
 async function backfillFrom(dateStr) {
-  try {
-    const url = new URL(BACKEND_URL + '/sync-from'); url.searchParams.set('date', dateStr);
-    const res = await fetch(url, { cache: 'no-store' });
-    if (res.ok) { await pullCombinedOrOrders(); return; }
-  } catch (_) {}
-  const start = new Date(dateStr + 'T00:00:00Z').getTime();
-  const now   = Date.now();
+  try { const url=new URL(BACKEND_URL + '/sync-from'); url.searchParams.set('date', dateStr);
+        const res=await fetch(url,{cache:'no-store'}); if(res.ok){ await pullCombinedOrOrders(); return; } } catch(_){}
+  const start = new Date(dateStr + 'T00:00:00Z').getTime(), now = Date.now();
   const days  = Math.max(1, Math.ceil((now - start) / 86400000));
-  try { await fetchJSON(BACKEND_URL + '/sync-backfill?days=' + days); } catch (e) { console.warn('sync-backfill failed:', e); }
+  try { await fetchJSON(BACKEND_URL + '/sync-backfill?days=' + days); } catch(e){ console.warn('sync-backfill failed:', e); }
   await pullCombinedOrOrders();
 }
 
-/* --------------- TOOLBAR (auto-hide) --------------- */
+/* --------------- Toolbar (auto-hide) --------------- */
 function injectEbayControls() {
   if (document.getElementById('ebay-sync-toolbar')) return;
-  const bar = document.createElement('div');
-  bar.id = 'ebay-sync-toolbar';
-  bar.style.cssText = [
-    'position:relative','margin:12px 0','padding:8px','border:1px solid var(--line)',
-    'background:var(--card)','border-radius:12px','display:flex','gap:8px','flex-wrap:wrap','align-items:center'
-  ].join(';');
-
-  const title = document.createElement('strong'); title.textContent='eBay Sync'; title.style.marginRight='8px'; bar.appendChild(title);
-
-  const connect = document.createElement('a');
-  connect.href = BACKEND_URL + '/auth/start'; connect.target = '_blank'; connect.rel='noopener';
-  connect.textContent='Connect eBay'; connect.className='btn'; bar.appendChild(connect);
-
-  const btnSync = document.createElement('button'); btnSync.textContent='Sync Now'; btnSync.onclick=syncNow; btnSync.className='btn'; bar.appendChild(btnSync);
-
-  const btnBackfill = document.createElement('button'); btnBackfill.textContent='Backfill from Jan 1, 2025';
-  btnBackfill.onclick=()=>backfillFrom('2025-01-01'); btnBackfill.className='btn'; bar.appendChild(btnBackfill);
-
-  const main = document.querySelector('main') || document.body;
-  main.insertBefore(bar, main.firstChild);
+  const bar=document.createElement('div');
+  bar.id='ebay-sync-toolbar';
+  bar.style.cssText=['position:relative','margin:12px 0','padding:8px','border:1px solid var(--line)','background:var(--card)','border-radius:12px','display:flex','gap:8px','flex-wrap:wrap','align-items:center'].join(';');
+  const title=document.createElement('strong'); title.textContent='eBay Sync'; title.style.marginRight='8px'; bar.appendChild(title);
+  const connect=document.createElement('a'); connect.href=BACKEND_URL + '/auth/start'; connect.target='_blank'; connect.rel='noopener'; connect.textContent='Connect eBay'; connect.className='btn'; bar.appendChild(connect);
+  const btnSync=document.createElement('button'); btnSync.textContent='Sync Now'; btnSync.onclick=syncNow; btnSync.className='btn'; bar.appendChild(btnSync);
+  const btnBackfill=document.createElement('button'); btnBackfill.textContent='Backfill from Jan 1, 2025'; btnBackfill.onclick=()=>backfillFrom('2025-01-01'); btnBackfill.className='btn'; bar.appendChild(btnBackfill);
+  const main=document.querySelector('main')||document.body; main.insertBefore(bar, main.firstChild);
 }
 function updateToolbarVisibility() {
   const s = store.get('settings', { flags:{showToolbar:false} });

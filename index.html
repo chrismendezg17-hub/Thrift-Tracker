@@ -28,8 +28,7 @@ if (typeof Chart === 'undefined') {
     --good:#34d399; --warn:#fbbf24; --bad:#ef4444; --radius:14px;
     --pill-yellow:#6d530f; --pill-green:#1b6f52;
   }
-  *{box-sizing:border-box}
-  html,body{height:100%}
+  *{box-sizing:border-box} html,body{height:100%}
   body{
     margin:0;color:var(--ink);
     background:linear-gradient(180deg,#071019,#0b0f14 30%,#0b0f14);
@@ -43,15 +42,14 @@ if (typeof Chart === 'undefined') {
     backdrop-filter:saturate(180%) blur(10px)
   }
   h1{margin:0;font-size:18px;letter-spacing:.3px}
-  .wrap{max-width:1100px;margin:0 auto;padding:16px;padding-bottom:110px}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px;padding-bottom:140px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin:12px 0}
   .row{display:flex;gap:12px;flex-wrap:wrap}
   .row>*{flex:1 1 240px}
   .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);font-size:12px}
   .pill.await{border-color:var(--pill-yellow); color:#facc15}
   .pill.sold{border-color:var(--pill-green); color:#34d399}
-  .muted{color:var(--muted)}
-  .center{text-align:center}
+  .muted{color:var(--muted)} .center{text-align:center}
   .big{font-size:28px;font-weight:600;margin:8px 0}
   label{display:flex;flex-direction:column;gap:6px;margin:6px 0;color:var(--muted);font-size:13px}
   input,select,textarea{background:var(--surface);border:1px solid #223146;color:var(--ink);padding:10px;border-radius:12px;outline:none}
@@ -59,31 +57,41 @@ if (typeof Chart === 'undefined') {
   button,.btn{appearance:none;background:#123048;border:1px solid #244e72;color:var(--ink);padding:10px 12px;border-radius:12px;cursor:pointer}
   .btn.primary{background:#0f2740;border-color:#285a85}
   .btn.ghost{background:transparent;border-color:#223146}
-  .btn.good{border-color:#1b6f52}
-  .btn.warn{border-color:#6d530f}
-  .list{list-style:none;padding:0;margin:0}
-  .list li{padding:10px;border-bottom:1px solid var(--line)}
+  .btn.good{border-color:#1b6f52} .btn.warn{border-color:#6d530f}
+  .list{list-style:none;padding:0;margin:0} .list li{padding:10px;border-bottom:1px solid var(--line)}
   table{width:100%;border-collapse:collapse}
   th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
   th{color:var(--muted);font-weight:600}
-  .chart-box, .chart-pie { position: relative; height: 320px; }
-  canvas { display:block; width:100% !important; height:100% !important; }
+
+  .chart-box,.chart-pie{position:relative;height:320px}
+  canvas{display:block;width:100%!important;height:100%!important}
+
+  /* Bottom tabs: mobile-friendly, swipeable */
   nav.tabs{
     position:fixed;left:0;right:0;bottom:0;z-index:9;
-    display:flex;gap:8px;justify-content:space-around;padding:10px 12px;
-    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    display:flex;gap:8px;align-items:center;padding:10px 12px;
+    padding-bottom:calc(max(10px, env(safe-area-inset-bottom)));
     background:#0b0f14cc;border-top:1px solid var(--line);
-    backdrop-filter:saturate(180%) blur(10px)
+    backdrop-filter:saturate(180%) blur(10px);
+    overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
   }
-  nav.tabs button{flex:1;background:var(--surface);border:1px solid #223146;border-radius:12px;padding:10px}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs button{flex:0 0 auto; background:var(--surface);border:1px solid #223146;border-radius:12px;padding:10px}
   nav.tabs button[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 2px #5bbcff22}
-  section.view{display:none}
-  section.view.active{display:block}
+
+  section.view{display:none} section.view.active{display:block}
+
+  /* Modal */
   .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0008;z-index:20}
   .modal.active{display:flex}
   .modal .panel{width:min(700px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
   .modal .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+
   a,area,button,input,label,select,summary,textarea,[tabindex]{touch-action:manipulation}
+
+  /* Empty states */
+  .empty{padding:12px;border:1px dashed #27405f;border-radius:12px;color:#9bb3d6;background:#0f1622}
 </style>
 </head>
 <body>
@@ -114,6 +122,8 @@ if (typeof Chart === 'undefined') {
           </label>
         </div>
       </div>
+
+      <div id="deviceHint" class="card empty" style="display:none"></div>
 
       <div class="card">
         <h3 style="margin:6px 0">Sales</h3>
@@ -315,14 +325,23 @@ if (typeof Chart === 'undefined') {
           <label style="display:flex;align-items:center;gap:10px;margin-top:12px">
             <input type="checkbox" id="showToolbar"> Show eBay Sync Toolbar (advanced)
           </label>
-          <small class="muted">Leave off to auto-hide once connected.</small>
         </div>
       </div>
     </div>
   </div>
 
 <script>
-/* ================= CORE UTILITIES ================= */
+/* ================= STORAGE (iOS Private Mode safe) ================= */
+const MEM = {};
+function storageAvailable(){
+  try{ const k='__tt_test__'; localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch{ return false; }
+}
+const USE_MEM = !storageAvailable();
+function lsGet(key){ if(USE_MEM) return MEM[key] ?? null; try{ return localStorage.getItem(key); } catch { return MEM[key] ?? null; } }
+function lsSet(key,val){ if(USE_MEM){ MEM[key]=val; return true; } try{ localStorage.setItem(key,val); return true; } catch { MEM[key]=val; return false; } }
+function lsDel(key){ if(USE_MEM){ delete MEM[key]; return; } try{ localStorage.removeItem(key); } catch { delete MEM[key]; } }
+
+/* ================= CORE UTILS ================= */
 const $  = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 const todayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
@@ -332,15 +351,12 @@ const toast = msg => { try{ let t=document.getElementById('toast'); if(!t){ t=do
   document.body.appendChild(t);} t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2000);}catch{} };
 const safe = fn => { try{ fn(); } catch(e){ console.error(e); } };
 
-function lsGet(key){ try{ return localStorage.getItem(key); } catch { return null; } }
-function lsSet(key,val){ try{ localStorage.setItem(key,val); return true; } catch { return false; } }
-function lsDel(key){ try{ localStorage.removeItem(key); } catch {} }
 function readArrLS(key){ try{ const v=JSON.parse(lsGet(key)||'[]'); return Array.isArray(v)?v:[]; } catch { return []; } }
 function uniqBy(arr, keyFn){ const seen=new Set(), out=[]; for(const x of arr){ const k=keyFn(x); if(seen.has(k)) continue; seen.add(k); out.push(x);} return out; }
 
 const BACKEND_URL = 'https://thrift-tracker-worker.chrismendezg17.workers.dev';
 
-/* ================= STORAGE ================= */
+/* ================= STORE WRAPPER ================= */
 const mapTTSale = s => { const amt=Number(s.price ?? s.amount ?? 0); return {
   id:s.id || ('s_'+(s.orderId||'')), title:s.item || s.title || 'eBay order', date:(s.date||'').slice(0,10),
   price:amt, total:amt, store:s.store||'eBay', notes:s.notes||'', qty:s.qty??1, category:s.category||'Online'
@@ -385,7 +401,7 @@ function getSettings(){
 }
 function saveSettings(s){ store.set('settings', s); return getSettings(); }
 
-/* ================= LABEL NORMALIZATION / CATEGORY REMAP ================= */
+/* ================= LABEL / CATEGORY NORMALIZATION ================= */
 const HIDE_EXPENSE_CATEGORIES = new Set(['WITHDRAWAL']);
 function prettifyLabel(s){
   return String(s || '')
@@ -403,22 +419,20 @@ function normalizeExpensesInPlace() {
     const name   = String(e?.name ?? e?.item ?? 'Expense');
     let catRaw   = String(e?.category ?? 'Other').toUpperCase();
 
-    if (catRaw === 'WITHDRAWAL') continue;           // skip payouts to bank
+    if (catRaw === 'WITHDRAWAL') continue;
     if (catRaw === 'PURCHASE') catRaw = 'COST OF GOODS';
     if (catRaw === 'SHIPPING_LABEL') catRaw = 'SHIPPING';
     if (catRaw === 'NON_SALE_CHARGE') catRaw = 'OTHER FEES';
 
-    const category = prettifyLabel(catRaw);          // pretty for UI
+    const category = prettifyLabel(catRaw);
     out.push({ ...e, amount, date, notes, name, category });
   }
   store.set('expenses', out);
 }
 
-/* ================= COGS ESTIMATION HELPERS ================= */
-function median(nums){
-  const a=nums.filter(n=>Number.isFinite(n)).sort((x,y)=>x-y);
-  if(!a.length) return 0;
-  const m=Math.floor(a.length/2);
+/* ================= COGS HELPERS ================= */
+function median(nums){ const a=nums.filter(n=>Number.isFinite(n)).sort((x,y)=>x-y);
+  if(!a.length) return 0; const m=Math.floor(a.length/2);
   return a.length%2 ? a[m] : (a[m-1]+a[m])/2;
 }
 function estimateCogForItem(it) {
@@ -452,7 +466,7 @@ function setCogForItem(itemId, amount, date){
   normalizeExpensesInPlace();
 }
 
-/* ================= MODALS (ARIA-safe with inert) ================= */
+/* ================= MODALS (ARIA-safe) ================= */
 function openModal(id){ const m=$(id); if(!m) return; m.inert=false; m.classList.add('active'); m.setAttribute('aria-hidden','false'); }
 function closeModal(id){ const m=$(id); if(!m) return; document.activeElement?.blur?.(); m.classList.remove('active'); m.setAttribute('aria-hidden','true'); m.inert=true; }
 
@@ -557,7 +571,6 @@ function renderQA(){
         <label>Shipping Cost<input type="number" step="0.01" id="i_ship" placeholder="e.g. 8.95"></label>
       </div>
     </details>`;
-    // Toggle price input if "unknown" checked
     setTimeout(()=>{ const unk=$('#i_cogs_unknown'), price=$('#i_price'); if(unk&&price){ const sync=()=>{ price.disabled=unk.checked; if(unk.checked) price.value=''; }; unk.addEventListener('change',sync); sync(); }},0);
   }
   else if(t==='store'){ qaForm.innerHTML=`
@@ -624,11 +637,9 @@ $('#qaSave').addEventListener('click', ()=>{
       sold_for: soldFor
     };
 
-    // Save item
     data.items.push(it);
     store.set('items', data.items);
 
-    // If COGS known now, create COGS expense
     if (!unknownCogs) {
       const cogExpense = {
         id: 'cog_' + id,
@@ -643,7 +654,6 @@ $('#qaSave').addEventListener('click', ()=>{
       store.set('expenses', ex);
     }
 
-    // If sold: create sale + est. fees + optional shipping
     if (soldDate && Number.isFinite(soldFor)) {
       const saleRec = {
         id: 'sale_' + id,
@@ -684,7 +694,6 @@ $('#qaSave').addEventListener('click', ()=>{
       }
       store.set('expenses', ex);
 
-      // If COGS unknown, create an estimated COG now
       if (unknownCogs) {
         const est = estimateCogForItem(it);
         setCogForItem(id, est, soldDate || date);
@@ -745,20 +754,12 @@ function renderInventory(){
 
   let items=data.items.map(i=>{
     const sold = (i.sold_for && i.sold_date) || soldTitles.has((i.title||'').toLowerCase().trim());
-    // Determine current COG value: prefer linked expense map, else item.price (may be null)
     const cogVal = (cogs.get(i.id) ?? (Number.isFinite(Number(i.price)) ? Number(i.price) : null));
-    return {
-      ...i,
-      _sold: !!sold,
-      _fees: fees.get(i.id)||0,
-      _ship: ship.get(i.id)||0,
-      _cog:  cogVal
-    };
+    return { ...i, _sold: !!sold, _fees: fees.get(i.id)||0, _ship: ship.get(i.id)||0, _cog:  cogVal };
   });
 
   if(q) items=items.filter(i=>(i.title||'').toLowerCase().includes(q)||(i.store||'').toLowerCase().includes(q));
-  if(f==='sold') items=items.filter(i=>i._sold);
-  if(f==='unsold') items=items.filter(i=>!i._sold);
+  if(f==='sold') items=items.filter(i=>i._sold); if(f==='unsold') items=items.filter(i=>!i._sold);
 
   tbody.innerHTML=items.map(i=>{
     const needsCogs = (i._cog == null || !Number.isFinite(i._cog));
@@ -783,16 +784,13 @@ function renderInventory(){
 $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
 
-// Inline "Set COGS" from Inventory table
+// Inline "Set COGS"
 document.getElementById('invTable').addEventListener('click', (e) => {
   if (!e.target.closest('.set-cogs')) return;
-  const tr = e.target.closest('tr[data-id]');
-  if (!tr) return;
-
+  const tr = e.target.closest('tr[data-id]'); if (!tr) return;
   const id = tr.getAttribute('data-id');
   const items = store.get('items', []);
-  const idx = items.findIndex(x => x.id === id);
-  if (idx < 0) return;
+  const idx = items.findIndex(x => x.id === id); if (idx < 0) return;
   const it = items[idx];
 
   const input = prompt('Enter COGS ($):', '');
@@ -800,22 +798,14 @@ document.getElementById('invTable').addEventListener('click', (e) => {
   const amt = Number(input);
   if (!Number.isFinite(amt) || amt < 0) { toast('Invalid amount','bad'); return; }
 
-  // update item price
-  items[idx].price = amt;
-  store.set('items', items);
-
-  // create/update linked COGS expense
+  items[idx].price = amt; store.set('items', items);
   setCogForItem(id, amt, it.date || todayISO());
   toast('COGS set');
-
-  renderInventory();
-  renderExpenses();
-  renderExpensePie();
+  renderInventory(); renderExpenses(); renderExpensePie();
 });
 
 function renderExpenses(){
   try {
-    // Ensure every expense has an id
     let ex = store.get('expenses', []);
     let mutated = false;
     ex = (Array.isArray(ex) ? ex : []).map(e => {
@@ -854,28 +844,19 @@ function renderExpenses(){
     if (ul) ul.innerHTML = '<li class="muted">No expenses yet.</li>';
   }
 }
-// Edit/Delete for expenses
 document.getElementById('expenseLog').addEventListener('click', (e) => {
-  const li = e.target.closest('li[data-id]');
-  if (!li) return;
+  const li = e.target.closest('li[data-id]'); if (!li) return;
   const id = li.getAttribute('data-id');
-
   let ex = store.get('expenses', []);
-  const idx = ex.findIndex(x => x.id === id);
-  if (idx < 0) return;
+  const idx = ex.findIndex(x => x.id === id); if (idx < 0) return;
 
   if (e.target.closest('.exp-del')) {
     if (confirm('Delete this expense?')) {
-      ex.splice(idx, 1);
-      store.set('expenses', ex);
-      normalizeExpensesInPlace();
-      renderExpensePie();
-      renderExpenses();
-      toast('Expense deleted');
+      ex.splice(idx, 1); store.set('expenses', ex);
+      normalizeExpensesInPlace(); renderExpensePie(); renderExpenses(); toast('Expense deleted');
     }
     return;
   }
-
   if (e.target.closest('.exp-edit')) {
     const cur = ex[idx];
     const name = prompt('Name:', cur.name ?? '') ?? cur.name;
@@ -883,22 +864,10 @@ document.getElementById('expenseLog').addEventListener('click', (e) => {
     const amtS = prompt('Amount ($):', String(cur.amount ?? 0)) ?? String(cur.amount ?? 0);
     const date = prompt('Date (YYYY-MM-DD):', cur.date ?? '') ?? cur.date;
     const notes= prompt('Notes (optional):', cur.notes ?? '') ?? cur.notes;
-
     const amt = Number(amtS);
-    ex[idx] = {
-      ...cur,
-      name: name?.trim() || cur.name,
-      category: cat?.trim() || cur.category,
-      amount: Number.isFinite(amt) ? amt : (cur.amount || 0),
-      date: date || cur.date,
-      notes: notes || ''
-    };
-
-    store.set('expenses', ex);
-    normalizeExpensesInPlace();
-    renderExpensePie();
-    renderExpenses();
-    toast('Expense updated');
+    ex[idx] = { ...cur, name: name?.trim()||cur.name, category: cat?.trim()||cur.category,
+      amount: Number.isFinite(amt)?amt:(cur.amount||0), date: date||cur.date, notes: notes||'' };
+    store.set('expenses', ex); normalizeExpensesInPlace(); renderExpensePie(); renderExpenses(); toast('Expense updated');
   }
 });
 
@@ -908,15 +877,10 @@ function renderSupplies(){
   const qb = $('#quickBuy');
   qb.innerHTML = '<option value="">Select a supply to buy…</option>' +
     list.filter(s=>s.url).map(s=>`<option value="${encodeURIComponent(s.url)}">${s.name}</option>`).join('');
-  qb.onchange = () => {
-    const val = qb.value; if (!val) return;
-    const url = decodeURIComponent(val);
-    window.open(url, '_blank','noopener');
-    qb.value = '';
-  };
+  qb.onchange = () => { const val = qb.value; if (!val) return; window.open(decodeURIComponent(val), '_blank','noopener'); qb.value = ''; };
 
   const tbody = $('#supTable tbody');
-  tbody.innerHTML = list.map(s=>`
+  tbody.innerHTML = list.length ? list.map(s=>`
     <tr data-id="${s.id}">
       <td>${s.url?`<a href="${s.url}" target="_blank" rel="noopener">${s.name||''}</a>`:(s.name||'')}</td>
       <td>${s.date||''}</td>
@@ -929,17 +893,13 @@ function renderSupplies(){
         </select>
       </td>
       <td><button class="btn ghost sup-del">Delete</button></td>
-    </tr>
-  `).join('');
+    </tr>`).join('') : '<tr><td colspan="5" class="muted">No supplies yet.</td></tr>';
 
   tbody.querySelectorAll('select.sup-status').forEach(sel=>{
     sel.addEventListener('change', e=>{
       const tr = e.target.closest('tr[data-id]'); const id = tr.getAttribute('data-id');
-      const arr = store.get('supplies', []);
-      const idx = arr.findIndex(x=>x.id===id); if (idx<0) return;
-      arr[idx].status = e.target.value;
-      store.set('supplies', arr);
-      toast('Supply updated');
+      const arr = store.get('supplies', []); const idx = arr.findIndex(x=>x.id===id); if (idx<0) return;
+      arr[idx].status = e.target.value; store.set('supplies', arr); toast('Supply updated');
     });
   });
   tbody.querySelectorAll('button.sup-del').forEach(btn=>{
@@ -947,9 +907,7 @@ function renderSupplies(){
       const tr = e.target.closest('tr[data-id]'); const id = tr.getAttribute('data-id');
       if (!confirm('Delete this supply?')) return;
       const arr = store.get('supplies', []).filter(x=>x.id!==id);
-      store.set('supplies', arr);
-      renderSupplies();
-      toast('Supply removed');
+      store.set('supplies', arr); renderSupplies(); toast('Supply removed');
     });
   });
 }
@@ -962,12 +920,8 @@ $('#addSupply').addEventListener('click', ()=>{
     status: $('#sup_status').value || 'OK',
     url: ($('#sup_url').value || '').trim()
   };
-  const list = store.get('supplies', []);
-  list.push(sup);
-  store.set('supplies', list);
-  $('#sup_name').value = ''; $('#sup_amt').value = ''; $('#sup_url').value = '';
-  renderSupplies();
-  toast('Supply added');
+  const list = store.get('supplies', []); list.push(sup); store.set('supplies', list);
+  $('#sup_name').value = ''; $('#sup_amt').value = ''; $('#sup_url').value = ''; renderSupplies(); toast('Supply added');
 });
 
 /* ================= ROUTES ================= */
@@ -977,12 +931,11 @@ function haversine(lat1,lon1,lat2,lon2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 function renderRoutes(){
-  const stores = store.get('stores', []);
-  let mutated=false;
+  const stores = store.get('stores', []); let mutated=false;
   for(const st of stores){ if(!st.id){ st.id='s_'+Math.random().toString(36).slice(2); mutated=true; } }
   if (mutated) store.set('stores', stores);
 
-  $('#routeList').innerHTML = stores.map(s=>{
+  $('#routeList').innerHTML = stores.length ? stores.map(s=>{
     const maps = (Number.isFinite(s.lat)&&Number.isFinite(s.lng)) ? `https://maps.apple.com/?daddr=${s.lat},${s.lng}` : '';
     const loc  = s.location ? `<small class="muted">${s.location}</small><br>` : '';
     const hours= (s.open||s.close) ? `<span class="muted">${s.open||''}${(s.open||s.close)?'–':''}${s.close||''}</span>` : '';
@@ -995,13 +948,10 @@ function renderRoutes(){
           <button class="btn ghost route-edit"  style="padding:6px 10px">✏️ Edit</button>
           <button class="btn warn  route-del"   style="padding:6px 10px">🗑️ Delete</button>
         </div>
-      </li>
-    `;
-  }).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store, or use “Bulk Import Stores”.</li>';
+      </li>`; }).join('') : '<li class="muted">No stores yet. Add some in Quick Add → Store, or use “Bulk Import Stores”.</li>';
 }
 function totalRouteMiles(home, stores){
-  let miles = 0;
-  let prev = { lat: home.lat, lng: home.lng };
+  let miles = 0; let prev = { lat: home.lat, lng: home.lng };
   for (const s of stores) {
     if (Number.isFinite(s.lat) && Number.isFinite(s.lng)) {
       miles += haversine(prev.lat, prev.lng, s.lat, s.lng) * 0.621371;
@@ -1011,8 +961,7 @@ function totalRouteMiles(home, stores){
   return miles;
 }
 function orderRouteWithFinalNearestHome(){
-  const s = getSettings();
-  const home = s?.home || {};
+  const s = getSettings(); const home = s?.home || {};
   if (!Number.isFinite(home.lat) || !Number.isFinite(home.lng)) { toast('Set your Home location in Settings first','bad'); return; }
 
   const stores = store.get('stores', []).slice();
@@ -1046,8 +995,7 @@ function orderRouteWithFinalNearestHome(){
       date: today
     };
     const curEx = store.get('expenses', []);
-    const exNo = curEx.filter(e => e.id !== mileExp.id);
-    exNo.push(mileExp);
+    const exNo = curEx.filter(e => e.id !== mileExp.id); exNo.push(mileExp);
     store.set('expenses', exNo);
     normalizeExpensesInPlace();
     renderExpenses();
@@ -1079,14 +1027,13 @@ document.getElementById('routeList').addEventListener('click', (e) => {
   }
   if (e.target.closest('.route-del')) {
     if (confirm('Delete this store?')) {
-      stores.splice(idx, 1);
-      store.set('stores', stores);
+      stores.splice(idx, 1); store.set('stores', stores);
       toast('Store removed'); renderRoutes();
     }
   }
 });
 
-/* ================= BULK IMPORT STORES (URLs or CSV) ================= */
+/* ================= BULK IMPORT STORES ================= */
 function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
   const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'')); const split=line=>{const out=[];let cur='',q=false;
     for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=='\\')) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;}
@@ -1200,21 +1147,17 @@ function renderSalesChart(){
   if (window.__charts && window.__charts.sales){ window.__charts.sales.destroy(); }
   const ctx=el.getContext('2d'); window.__charts=window.__charts||{};
   window.__charts.sales=new Chart(ctx,{ type:'bar', data:{labels, datasets:[{label:'Sales', data}]},
-    options:{ responsive:true, maintainAspectRatio:false, resizeDelay:200, animation:false,
-      scales:{ y:{ beginAtZero:true } } }});
+    options:{ responsive:true, maintainAspectRatio:false, resizeDelay:200, animation:false, scales:{ y:{ beginAtZero:true } } }});
 }
 $('#periodSelect').addEventListener('change', ()=>{ safe(renderSalesChart); safe(renderTotalSales); });
 
 function renderExpensePie(){
-  const el = document.getElementById('expenseChart');
-  if (!el) return;
-
+  const el = document.getElementById('expenseChart'); if (!el) return;
   const by = {};
   for (const e of store.get('expenses', [])) {
     const rawCat = String(e?.category ?? 'Other').toUpperCase();
     if (HIDE_EXPENSE_CATEGORIES.has(rawCat)) continue;
-    const k = rawCat;
-    by[k] = (by[k] || 0) + Number(e?.amount ?? e?.cost ?? 0) || 0;
+    const k = rawCat; by[k] = (by[k] || 0) + Number(e?.amount ?? e?.cost ?? 0) || 0;
   }
   const entries = Object.entries(by).sort((a,b) => b[1] - a[1]);
   const labelsPretty = entries.map(([k]) => prettifyLabel(k));
@@ -1229,18 +1172,10 @@ function renderExpensePie(){
 
   if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded; skipping expense chart'); return; }
   if (window.__charts && window.__charts.expense) { window.__charts.expense.destroy(); }
-
   const ctx = el.getContext('2d');
   window.__charts = window.__charts || {};
-  window.__charts.expense = new Chart(ctx, {
-    type: 'pie',
-    data: { labels: labelsPretty, datasets: [{ data: values }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { font: { size: 12 } } } }
-    }
-  });
+  window.__charts.expense = new Chart(ctx, { type:'pie', data:{ labels: labelsPretty, datasets:[{ data: values }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ font:{ size:12 } } } } }});
 }
 function renderStoresPerf(){
   const items=store.get('items',[]), sales=store.get('sales',[]);
@@ -1248,10 +1183,10 @@ function renderStoresPerf(){
   const perf={}; items.forEach(it=>{ const k=it.store||''; if(!perf[k]) perf[k]={cogs:0,count:0,sold:0};
     perf[k].cogs+=Number(it.price||0); perf[k].count+=1; const key=(it.title||'').toLowerCase().trim(); if(soldByTitle[key]) perf[k].sold+=soldByTitle[key]; });
   const rows=Object.entries(perf).sort((a,b)=>b[1].sold-a[1].sold);
-  $('#storesPerf').innerHTML = rows.map(([name,p])=>`
+  $('#storesPerf').innerHTML = rows.length ? rows.map(([name,p])=>`
     <li><strong>${name||'(no store set)'}</strong><br>
       <small class="muted">COGS: ${money(p.cogs)} • Items: ${p.count} • Sold: ${money(p.sold)}</small>
-    </li>`).join('') || '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
+    </li>`).join('') : '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
 
 /* ================= CSV IMPORT + BACKUP ================= */
@@ -1290,7 +1225,7 @@ $('#backupFile').addEventListener('change',e=>{
   r.readAsText(f);
 });
 
-/* ================= EBAY SYNC TOOLBAR (optional) ================= */
+/* ================= EBAY SYNC TOOLBAR (visibility) ================= */
 function injectEbayControls() {
   if (document.getElementById('ebay-sync-toolbar')) return;
   const bar=document.createElement('div');
@@ -1302,9 +1237,9 @@ function injectEbayControls() {
   const main=document.querySelector('main')||document.body; main.insertBefore(bar, main.firstChild);
 }
 function updateToolbarVisibility() {
-  const s = getSettings();
-  const sales = readArrLS('tt-sales'); const exps = readArrLS('tt-expenses');
-  const hasData = (Array.isArray(sales)&&sales.length>0) || (Array.isArray(exps)&&exps.length>0);
+  const s = getSettings(); const sales = readArrLS('tt-sales'); const exps = readArrLS('tt-expenses');
+  const hasData = (Array.isArray(sales)&&sales.length>0) || (Array.isArray(exps)&&exps.length>0)
+                  || store.get('sales',[]).length>0 || store.get('expenses',[]).length>0;
   const shouldShow = (s.flags?.showToolbar === true) || !hasData;
   const bar = document.getElementById('ebay-sync-toolbar');
   if (shouldShow) { if (!bar) injectEbayControls(); else bar.style.display = ''; }
@@ -1312,10 +1247,22 @@ function updateToolbarVisibility() {
 }
 
 /* ================= RENDER / BOOTSTRAP ================= */
-function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); safe(renderSupplies); safe(renderExpenses); }
+function renderEmptyHints(){
+  const hint = document.getElementById('deviceHint');
+  const hasSales = store.get('sales', []).length > 0;
+  const hasExpenses = store.get('expenses', []).length > 0;
+  if (!hasSales && !hasExpenses) {
+    hint.style.display = '';
+    hint.innerHTML = 'This device has no sales/expenses yet. <b>Import a backup</b> (Inventory → Import Backup) or <b>Connect eBay</b> (toggle toolbar in Settings).';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); safe(renderSupplies); safe(renderExpenses); safe(renderEmptyHints); }
 
 document.addEventListener('DOMContentLoaded', () => {
-  normalizeExpensesInPlace();   // clean categories/labels on boot
+  normalizeExpensesInPlace();
+  updateToolbarVisibility();      // <- show connect toolbar on devices with no data
   tryRenderAll();
 });
 window.addEventListener('load', () => { renderTotalSales(); });

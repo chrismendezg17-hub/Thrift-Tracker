@@ -546,7 +546,7 @@ function normalizeExpensesInPlace() {
   for (const e of Array.isArray(raw) ? raw : []) {
     const amount = Number(e?.amount ?? e?.cost ?? 0) || 0;
     const date   = String(e?.date ?? '');
-    the notes  = String(e?.notes ?? '');
+    const notes  = String(e?.notes ?? '');
     const name   = String(e?.name ?? e?.item ?? 'Expense');
     let catRaw   = String(e?.category ?? 'Other').toUpperCase();
 

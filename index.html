@@ -60,13 +60,16 @@ if (typeof Chart === 'undefined') {
   .btn.good{border-color:#1b6f52} .btn.warn{border-color:#6d530f}
   .list{list-style:none;padding:0;margin:0} .list li{padding:10px;border-bottom:1px solid var(--line)}
   table{width:100%;border-collapse:collapse}
-  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
+  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
   th{color:var(--muted);font-weight:600}
 
   .chart-box,.chart-pie{position:relative;height:320px}
   canvas{display:block;width:100%!important;height:100%!important}
 
-  /* Bottom tabs: mobile-first */
+  /* Small thumbs in tables/cards */
+  img.thumb{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#0f1622;margin-right:8px}
+
+  /* Bottom tabs: mobile-friendly, swipeable */
   nav.tabs{
     position:fixed;left:0;right:0;bottom:0;z-index:9;
     display:flex;gap:8px;align-items:center;padding:10px 12px;
@@ -79,6 +82,7 @@ if (typeof Chart === 'undefined') {
   nav.tabs::-webkit-scrollbar{display:none}
   nav.tabs button{flex:0 0 auto; background:var(--surface);border:1px solid #223146;border-radius:12px;padding:10px}
   nav.tabs button[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 2px #5bbcff22}
+
   section.view{display:none} section.view.active{display:block}
 
   /* Desktop tab polish */
@@ -89,30 +93,17 @@ if (typeof Chart === 'undefined') {
       white-space:normal;
       padding-bottom:10px;
       background:#0b0f14ee;
-      border-top:1px solid var(--line);
     }
-    nav.tabs button{padding:8px 12px;font-size:14px}
-    .wrap{padding-bottom:72px}
+    nav.tabs button{ padding:8px 12px; font-size:14px; }
+    .wrap{ padding-bottom:72px; }
   }
 
   /* Hide stray native file inputs site-wide; still clickable via labels/buttons */
   input[type="file"]{
-    position:absolute !important;
-    left:-10000px !important;
-    width:1px !important;
-    height:1px !important;
-    opacity:0 !important;
-    pointer-events:none !important;
+    position:absolute !important; left:-10000px !important; width:1px !important; height:1px !important; opacity:0 !important; pointer-events:none !important;
   }
   /* But allow file inputs to be visible when a modal is open (Settings, etc.) */
-  .modal.active input[type="file"]{
-    position:static !important;
-    left:auto !important;
-    width:auto !important;
-    height:auto !important;
-    opacity:1 !important;
-    pointer-events:auto !important;
-  }
+  .modal.active input[type="file"]{ position:static !important; left:auto !important; width:auto !important; height:auto !important; opacity:1 !important; pointer-events:auto !important; }
 
   /* Modal */
   .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0008;z-index:20}
@@ -132,10 +123,6 @@ if (typeof Chart === 'undefined') {
   @media(min-width:900px){ .grid-cards{display:none} }
   @media(min-width:900px){ .table-wrap{display:block} }
   @media(max-width:899px){ .table-wrap{display:none} }
-
-  /* Thumbnails */
-  table img.thumb{width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#0b0f14}
-  .grid-item img.thumb{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:#0b0f14}
 </style>
 </head>
 <body>
@@ -216,7 +203,7 @@ if (typeof Chart === 'undefined') {
       </div>
     </section>
 
-    <!-- INVENTORY -->
+    <!-- INVENTORY (now includes eBay Active + Sold sections) -->
     <section id="view-inventory" class="view" role="tabpanel" aria-labelledby="tab-inventory">
       <div class="card">
         <h2>Inventory</h2>
@@ -229,7 +216,7 @@ if (typeof Chart === 'undefined') {
           </select>
           <button class="btn" id="btnExport">Export Backup</button>
           <label class="btn" for="backupFile" style="display:inline-block;text-align:center;cursor:pointer">Import Backup</label>
-          <input type="file" id="backupFile" accept="application/json">
+          <input type="file" id="backupFile" accept="application/json" style="display:none">
         </div>
       </div>
 
@@ -239,7 +226,7 @@ if (typeof Chart === 'undefined') {
           <div class="pill">eBay Sync</div>
           <button class="btn" id="btnImportActive">Import eBay Active</button>
           <button class="btn" id="btnImportSold">Import eBay Sold (90d)</button>
-          <span id="syncMsg" class="muted"></span>
+          <span id="syncMsg" class="muted" style="margin-left:8px"></span>
         </div>
         <div class="row" style="margin-top:8px">
           <span class="pill">Active <b id="countActive" style="margin-left:6px">0</b></span>
@@ -253,7 +240,7 @@ if (typeof Chart === 'undefined') {
         <div class="table-wrap">
           <table id="tblActive">
             <thead><tr>
-              <th>Image</th><th>Item</th><th>SKU</th><th>Ask</th><th>Status</th><th>Link</th>
+              <th>Item</th><th>SKU</th><th>Ask</th><th>Status</th><th>Link</th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -268,7 +255,7 @@ if (typeof Chart === 'undefined') {
         <div class="table-wrap">
           <table id="tblSold">
             <thead><tr>
-              <th>Image</th><th>Item</th><th>Sold $</th><th>COG</th><th>Fees</th><th>Profit</th><th>Sold Date</th><th>Source</th>
+              <th>Item</th><th>Sold $</th><th>COG</th><th>Fees</th><th>Profit</th><th>Sold Date</th><th>Source</th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -277,7 +264,7 @@ if (typeof Chart === 'undefined') {
         <div id="soldHint" class="empty" style="display:none">No sold records imported yet — click <b>Import eBay Sold (90d)</b>.</div>
       </div>
 
-      <!-- Legacy combined table -->
+      <!-- Legacy combined table keeps working -->
       <div class="card" style="overflow:auto">
         <h3 style="margin:6px 0">All Items (Manual + Linked)</h3>
         <table id="invTable">
@@ -455,7 +442,7 @@ const mapTTSale = s => { const amt=Number(s.price ?? s.amount ?? 0); return {
 const mapTTExpense = e => ({ id:e.id||('e_'+(e.notes||'')), name:e.item||e.name||e.category||'Expense',
   category:e.category||'Other', amount:Number(e.cost??e.amount??0), notes:e.notes||'', date:(e.date||'').slice(0,10) });
 
-/* ---- eBay auto-sync mappers (like sales) ---- */
+// ---- eBay auto-sync mappers (like sales) ----
 const pickImage = (x) =>
   x?.image || x?.pictureURL || x?.galleryURL || x?.imageUrl || x?.image_url ||
   (x?.image && x.image.imageUrl) ||
@@ -480,21 +467,6 @@ const mapTTAutoSold = (x) => ({
   source:'Auto'
 });
 
-/* stable unions that also read any auto-populated "tt-*" keys (like tt-sales) */
-function getActive(){
-  const saved = store.get('ebayActive', []);
-  const auto  = readArrLS('tt-active').map(mapTTActive);
-  return uniqBy(saved.concat(auto), (r) => [r.title, r.sku, r.url].join('|'));
-}
-function setActive(arr){ store.set('ebayActive', Array.isArray(arr)?arr:[]); }
-
-function getSold(){
-  const saved = store.get('ebaySold', []);
-  const auto  = readArrLS('tt-sold').map(mapTTAutoSold);
-  return uniqBy(saved.concat(auto), (r) => [r.title, r.date, r.sold].join('|'));
-}
-function setSold(arr){ store.set('ebaySold', Array.isArray(arr)?arr:[]); }
-
 const store = {
   get(key, def = []){
     try{
@@ -518,6 +490,21 @@ const store = {
   del(key){ lsDel(key); },
   all(){ return { items:this.get('items',[]), stores:this.get('stores',[]), sales:this.get('sales',[]), expenses:this.get('expenses',[]), supplies:this.get('supplies',[]) }; }
 };
+
+/* ============= eBay Active/Sold getters that ALSO read auto/worker feeds ============= */
+function getActive(){
+  const saved = store.get('ebayActive', []);
+  const auto  = readArrLS('tt-active').map(mapTTActive);           // optional auto feed
+  return uniqBy(saved.concat(auto), (r) => [r.title, r.sku, r.url].join('|'));
+}
+function setActive(arr){ store.set('ebayActive', Array.isArray(arr)?arr:[]); }
+
+function getSold(){
+  const saved = store.get('ebaySold', []);
+  const auto  = readArrLS('tt-sold').map(mapTTAutoSold);            // optional auto feed
+  return uniqBy(saved.concat(auto), (r) => [r.title, r.date, r.sold].join('|'));
+}
+function setSold(arr){ store.set('ebaySold', Array.isArray(arr)?arr:[]); }
 
 /* ================= SETTINGS ================= */
 function getSettings(){
@@ -708,7 +695,8 @@ function renderQA(){
         <label>Sold Price<input type="number" step="0.01" id="i_soldfor"></label>
         <label>Shipping Cost<input type="number" step="0.01" id="i_ship" placeholder="e.g. 8.95"></label>
       </div>
-    </details>`; setTimeout(()=>{ const unk=$('#i_cogs_unknown'), price=$('#i_price'); if(unk&&price){ const sync=()=>{ price.disabled=unk.checked; if(unk.checked) price.value=''; }; unk.addEventListener('change',sync); sync(); }},0);
+    </details>`;
+    setTimeout(()=>{ const unk=$('#i_cogs_unknown'), price=$('#i_price'); if(unk&&price){ const sync=()=>{ price.disabled=unk.checked; if(unk.checked) price.value=''; }; unk.addEventListener('change',sync); sync(); }},0);
   }
   else if(t==='store'){ qaForm.innerHTML=`
     <div class="row">
@@ -734,7 +722,7 @@ function renderQA(){
       <label>Status
         <select id="qa_sup_status"><option value="OK">In Stock</option><option value="LOW">Low</option><option value="OUT">Out</option></select>
       </label>
-      <label>eBay Link<input type="url" id="qa_sup_url" placeholder="https://www.ebay.com/itm/..."></label>
+      <label>eBay Link<input type="url" id="qa_sup_url" placeholder="https://www.ebay.com/itm/"></label>
     </div>`; }
   else { qaForm.innerHTML=`
     <div class="row">
@@ -1064,7 +1052,7 @@ $('#addSupply').addEventListener('click', ()=>{
 function haversine(lat1,lon1,lat2,lon2){
   const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
   const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
-  return R*2*Math.atan2(Math.sqrt(1-a),Math.sqrt(a));
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 function renderRoutes(){
   const stores = store.get('stores', []); let mutated=false;
@@ -1172,13 +1160,12 @@ document.getElementById('routeList').addEventListener('click', (e) => {
 /* ================= BULK IMPORT STORES (modal wiring) ================= */
 function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
   const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'')); const split=line=>{const out=[];let cur='',q=false;
-    for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=='\\')) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;}
+    for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=="\\")) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;}
     out.push(cur); return out.map(x=>x.trim().replace(/^"|"$/g,'')); };
   return lines.slice(1).map(l=>{const cells=split(l),o={}; headers.forEach((h,i)=>o[h]=cells[i]); return o;}); }
 function parseCsvLoose(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim()); if(!lines.length) return [];
   const headers = lines[0].split(',').map(h=>h.trim());
-  return lines.slice(1).map(l=>{ const cells=l.split(','); const o={}; headers.forEach((h,i)=>o[h]=cells[i]??''); return o; });
-}
+  return lines.slice(1).map(l=>{ const cells=l.split(','); const o={}; headers.forEach((h,i)=>o[h]=cells[i]??''); return o; }); }
 function parseAppleMapsUrl(line){
   try{
     const s=line.trim(); if(!/^https?:\/\/(maps\.apple\.com)(\/|$)/i.test(s)) return null;
@@ -1213,7 +1200,7 @@ function dedupeStores(arr, existing){
   return out;
 }
 (function initBulkImportStores(){
-  const modal=$('#modalImportStores'), openBtn=$('#btnBulkImportStores'), closeBtn=$('#btnCloseImportStores']);
+  const modal=$('#modalImportStores'), openBtn=$('#btnBulkImportStores'), closeBtn=$('#btnCloseImportStores');
   const doBtn=$('#btnDoImportStores'), prevBtn=$('#btnPreviewImportStores'), input=$('#bulkStoresInput'), preview=$('#bulkStoresPreview');
   if(!modal||!openBtn) return;
   function show(){ openModal('#modalImportStores'); input.focus(); }
@@ -1235,7 +1222,7 @@ function dedupeStores(arr, existing){
   prevBtn.addEventListener('click', ()=>{
     const arr=parseBulk(input.value);
     const missing=arr.filter(s=>!(Number.isFinite(s.lat)&&Number.isFinite(s.lng)) && (s.name||s.location)).length;
-    preview.textContent = arr.length ? `Will import ${arr.length} store${arr.length===1?'':''} • ${missing?`${missing} need coords`:''}`.trim() : 'Nothing detected.';
+    preview.textContent = arr.length ? `Will import ${arr.length} store${arr.length===1?'':'s'}` + (missing?` • ${missing} need coords`:'') : 'Nothing detected.';
   });
   doBtn.addEventListener('click', ()=>{
     const arr=parseBulk(input.value); if(!arr.length){ toast('Nothing to import','bad'); return; }
@@ -1244,9 +1231,8 @@ function dedupeStores(arr, existing){
   });
 })();
 
-/* ================= EBAY IMPORT/FILES + BACKUP ================= */
-
-/* Hidden file inputs for imports */
+/* ================= EBAY ACTIVE + SOLD (import + optional backend auto-sync) ================= */
+// Hidden file inputs for imports
 const __fileActive = document.createElement('input');
 __fileActive.type='file'; __fileActive.accept='.json';
 const __fileSold = document.createElement('input');
@@ -1267,6 +1253,7 @@ async function importActiveFromFile(){
       sku: x.sku||x.SKU||'',
       price: Number(x.price||x.ask||x.listPrice||0) || 0,
       url: x.url||x.link||'',
+      image: pickImage(x) || '',
       status: x.status||'Active'
     }));
     setActive(norm); toast(`Imported ${norm.length} active listings`); renderEbayActive();
@@ -1296,6 +1283,7 @@ async function importSoldFromFile(){
       cogs: Number(r.cogs||r.cog||0) || 0,
       fees: Number(r.fees||0) || 0,
       date: r.date ? new Date(r.date).toISOString() : '',
+      image: pickImage(r) || '',
       source: r.source||'Import'
     }));
     setSold(normalized);
@@ -1312,11 +1300,6 @@ __fileActive.addEventListener('change', importActiveFromFile);
 __fileSold.addEventListener('change', importSoldFromFile);
 
 /* ================= CSV IMPORT + BACKUP (dashboard sales) ================= */
-function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
-  const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'')); const split=line=>{const out=[];let cur='',q=false;
-    for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=='\\')) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;} out.push(cur);
-    return out.map(x=>x.trim().replace(/^"|"$/g,'')); }
-  return lines.slice(1).map(l=>{const cells=split(l),o={}; headers.forEach((h,i)=>o[h]=cells[i]); return o;}); }
 function pickNumber(o,ks){ for(const k of ks){ if(k in o && o[k]!=='' && o[k]!=null){const v=String(o[k]).replace(/[^0-9.\-]/g,''); if(v!==''&&!Number.isNaN(Number(v))) return Number(v);} } return null; }
 function pickDate(o,ks){ for(const k of ks){ if(k in o && o[k]){const d=new Date(o[k]); if(!isNaN(d)) return d.toISOString();} } return null; }
 function pickText(o,ks){ for(const k of ks){ if(k in o && o[k]) return String(o[k]); } return ''; }
@@ -1351,17 +1334,18 @@ $('#backupFile').addEventListener('change',e=>{
   }catch{toast('Invalid backup file','bad');}};
   r.readAsText(f);
 });
-
-/* ================= BACKEND AUTO-SYNC ================= */
+  
 async function fetchJSON(url){
   const r = await fetch(url, { credentials: 'include' });
   if (!r.ok) throw new Error(`${r.status}`);
   return r.json();
 }
+
 async function syncEbayFromBackend(){
-  const msg = document.getElementById('syncMsg');
-  if (msg) msg.textContent = 'Syncing…';
   try{
+    const msg = document.getElementById('syncMsg');
+    if (msg) msg.textContent = 'Syncing…';
+
     // expect arrays: [{title,sku,price,url,image,status}], [{title,sold,cogs,fees,date,image}]
     const [active, sold] = await Promise.allSettled([
       fetchJSON(BACKEND_URL + '/active'),
@@ -1374,6 +1358,7 @@ async function syncEbayFromBackend(){
     if (sold.status === 'fulfilled' && Array.isArray(sold.value)) {
       const norm = sold.value.map(mapTTAutoSold);
       setSold(norm);
+
       // also feed dashboard "sales" just like CSV import
       const add = norm.map(s => ({
         id: 'sale_' + (s.title + s.date + s.sold).toString(36),
@@ -1386,16 +1371,16 @@ async function syncEbayFromBackend(){
 
     renderEbayActive?.(); renderEbaySold?.();
     renderSalesChart?.(); renderTotalSales?.();
-    if (msg) msg.textContent = 'Synced';
+    if (msg) msg.textContent = '';
     return true;
   }catch(e){
     console.warn('backend sync failed', e);
-    if (msg) msg.textContent = 'Sync failed (see console)';
+    const msg = document.getElementById('syncMsg');
+    if (msg) msg.textContent = 'Sync unavailable';
     return false;
   }
 }
 
-/* ================= RENDERERS ================= */
 function renderEbayActive(){
   const items = getActive();
   $('#countActive').textContent = String(items.length);
@@ -1408,8 +1393,7 @@ function renderEbayActive(){
 
   const htmlRows = items.map(it => `
     <tr>
-      <td>${it.image ? `<img class="thumb" src="${it.image}" alt="">` : ''}</td>
-      <td>${it.title||''}</td>
+      <td>${it.image ? `<img class="thumb" src="${it.image}" alt="">` : ''}<strong>${it.title||''}</strong></td>
       <td>${it.sku||''}</td>
       <td>${Number.isFinite(Number(it.price))?money(Number(it.price)):''}</td>
       <td><span class="pill">${it.status||'Active'}</span></td>
@@ -1427,6 +1411,7 @@ function renderEbayActive(){
       </div>
     </div>`).join('');
 }
+
 function renderEbaySold(){
   const rows = getSold();
   $('#countSold').textContent = String(rows.length);
@@ -1441,8 +1426,7 @@ function renderEbaySold(){
     const sold = Number(r.sold||0), cogs = Number(r.cogs||0), fees = Number(r.fees||0);
     const profit = sold - cogs - fees;
     return `<tr>
-      <td>${r.image ? `<img class="thumb" src="${r.image}" alt="">` : ''}</td>
-      <td>${r.title||''}</td>
+      <td>${r.image ? `<img class=\"thumb\" src=\"${r.image}\" alt=\"\">` : ''}<strong>${r.title||''}</strong></td>
       <td>${money(sold)}</td>
       <td>${cogs?money(cogs):''}</td>
       <td>${fees?money(fees):''}</td>
@@ -1547,9 +1531,12 @@ function renderStoresPerf(){
     </li>`).join('') : '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
 
-/* ================= eBay Sync toolbar placeholders ================= */
-function injectEbayControls(){ /* optional toolbar not used */ }
-function updateToolbarVisibility(){ /* keep references safe; nothing to show */ }
+/* ================= eBay Sync toolbar (visibility only) ================= */
+function updateToolbarVisibility(){
+  const show = !!getSettings()?.flags?.showToolbar;
+  const card = document.getElementById('ebaySyncCard');
+  if (card) card.style.display = show ? '' : '' /* keep visible by default */;
+}
 
 /* ================= RENDER / BOOTSTRAP ================= */
 function renderEmptyHints(){
@@ -1581,10 +1568,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   normalizeExpensesInPlace();
   updateToolbarVisibility();
 
-  // backend/auto keys sync (if backend is configured)
-  if (typeof syncEbayFromBackend === 'function') {
-    try { await syncEbayFromBackend(); } catch {}
-  }
+  // try backend/auto keys if you added a worker
+  try { await syncEbayFromBackend(); } catch {}
 
   tryRenderAll();            // general render
   // make sure inventory sections have content/hints ready even if the tab isn't active yet
@@ -1598,10 +1583,8 @@ window.addEventListener('load', () => { renderTotalSales(); });
 <!-- PWA (optional) -->
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js?v=tt-v8-2025-08-16a').catch(()=>{});
+  navigator.serviceWorker.register('sw.js?v=tt-v9-2025-09-09').catch(()=>{});
 }
 </script>
 </body>
 </html>
-
-

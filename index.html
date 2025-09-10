@@ -92,6 +92,14 @@ if (typeof Chart === 'undefined') {
 
   /* Empty states */
   .empty{padding:12px;border:1px dashed #27405f;border-radius:12px;color:#9bb3d6;background:#0f1622}
+
+  /* Responsive tables to cards */
+  .grid-cards{display:grid;gap:10px}
+  .grid-item{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px}
+  .grid-item .meta{color:var(--muted);font-size:12px}
+  @media(min-width:900px){ .grid-cards{display:none} }
+  @media(min-width:900px){ .table-wrap{display:block} }
+  @media(max-width:899px){ .table-wrap{display:none} }
 </style>
 </head>
 <body>
@@ -172,7 +180,7 @@ if (typeof Chart === 'undefined') {
       </div>
     </section>
 
-    <!-- INVENTORY -->
+    <!-- INVENTORY (now includes eBay Active + Sold sections) -->
     <section id="view-inventory" class="view" role="tabpanel" aria-labelledby="tab-inventory">
       <div class="card">
         <h2>Inventory</h2>
@@ -187,17 +195,64 @@ if (typeof Chart === 'undefined') {
           <label class="btn" for="backupFile" style="display:inline-block;text-align:center;cursor:pointer">Import Backup</label>
           <input type="file" id="backupFile" accept="application/json" style="display:none">
         </div>
-        <div class="card" style="overflow:auto">
-          <table id="invTable">
-            <thead>
-              <tr>
-                <th>Item</th><th>Store</th><th>Bought</th><th>Listed</th><th>Sold</th>
-                <th>COG</th><th>Sold For</th><th>Fees</th><th>Shipping</th><th>Status</th>
-              </tr>
-            </thead>
+      </div>
+
+      <!-- eBay Sync controls + counts -->
+      <div class="card" id="ebaySyncCard">
+        <div class="row" style="align-items:center">
+          <div class="pill">eBay Sync</div>
+          <button class="btn" id="btnImportActive">Import eBay Active</button>
+          <button class="btn" id="btnImportSold">Import eBay Sold (90d)</button>
+          <span id="syncMsg" class="muted"></span>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <span class="pill">Active <b id="countActive" style="margin-left:6px">0</b></span>
+          <span class="pill">Sold (90d) <b id="countSold" style="margin-left:6px">0</b></span>
+        </div>
+      </div>
+
+      <!-- ACTIVE LISTINGS -->
+      <div class="card">
+        <h3 style="margin:6px 0">Active eBay Listings</h3>
+        <div class="table-wrap">
+          <table id="tblActive">
+            <thead><tr>
+              <th>Item</th><th>SKU</th><th>Ask</th><th>Status</th><th>Link</th>
+            </tr></thead>
             <tbody></tbody>
           </table>
         </div>
+        <div id="cardsActive" class="grid-cards"></div>
+        <div id="activeHint" class="empty" style="display:none">No active listings yet — click <b>Import eBay Active</b>.</div>
+      </div>
+
+      <!-- SOLD HISTORY -->
+      <div class="card">
+        <h3 style="margin:6px 0">Sold (Imported)</h3>
+        <div class="table-wrap">
+          <table id="tblSold">
+            <thead><tr>
+              <th>Item</th><th>Sold $</th><th>COG</th><th>Fees</th><th>Profit</th><th>Sold Date</th><th>Source</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="cardsSold" class="grid-cards"></div>
+        <div id="soldHint" class="empty" style="display:none">No sold records imported yet — click <b>Import eBay Sold (90d)</b>.</div>
+      </div>
+
+      <!-- Legacy combined table keeps working -->
+      <div class="card" style="overflow:auto">
+        <h3 style="margin:6px 0">All Items (Manual + Linked)</h3>
+        <table id="invTable">
+          <thead>
+            <tr>
+              <th>Item</th><th>Store</th><th>Bought</th><th>Listed</th><th>Sold</th>
+              <th>COG</th><th>Sold For</th><th>Fees</th><th>Shipping</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </section>
 
@@ -512,7 +567,7 @@ $('#btnSaveSettings2').addEventListener('click', ()=>{
 
 $('#btnClearAll').addEventListener('click',()=>{
   if(!confirm('Erase all local data? This cannot be undone.')) return;
-  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger','supplies'].forEach(k=>store.del(k));
+  ['items','expenses','stores','sales','settings','tt-sales','tt-expenses','tt-ledger','supplies','ebayActive','ebaySold'].forEach(k=>store.del(k));
   tryRenderAll(); toast('All data cleared');
 });
 $('#btnUseLocation').addEventListener('click',()=>{
@@ -545,7 +600,7 @@ function activateView(id){
 }
 $$('nav.tabs [role="tab"]').forEach(btn=>btn.addEventListener('click',()=>activateView(btn.getAttribute('aria-controls'))));
 
-/* ================= QUICK ADD ================= */
+/* ================= QUICK ADD (unchanged, trimmed) ================= */
 const qaType=$('#qaType'), qaForm=$('#qaForm');
 function renderQA(){
   const t=qaType.value;
@@ -784,7 +839,6 @@ function renderInventory(){
 $('#invSearch').addEventListener('input',renderInventory);
 $('#invFilter').addEventListener('change',renderInventory);
 
-// Inline "Set COGS"
 document.getElementById('invTable').addEventListener('click', (e) => {
   if (!e.target.closest('.set-cogs')) return;
   const tr = e.target.closest('tr[data-id]'); if (!tr) return;
@@ -871,7 +925,7 @@ document.getElementById('expenseLog').addEventListener('click', (e) => {
   }
 });
 
-/* ================= SUPPLIES ================= */
+/* ================= SUPPLIES (unchanged) ================= */
 function renderSupplies(){
   const list = store.get('supplies', []);
   const qb = $('#quickBuy');
@@ -924,7 +978,7 @@ $('#addSupply').addEventListener('click', ()=>{
   $('#sup_name').value = ''; $('#sup_amt').value = ''; $('#sup_url').value = ''; renderSupplies(); toast('Supply added');
 });
 
-/* ================= ROUTES ================= */
+/* ================= ROUTES (unchanged from your file) ================= */
 function haversine(lat1,lon1,lat2,lon2){
   const r=n=>n*Math.PI/180,R=6371,dLat=r(lat2-lat1),dLon=r(lon2-lon1);
   const a=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
@@ -982,26 +1036,26 @@ function orderRouteWithFinalNearestHome(){
     toast(`Final stop set to: ${closest.name || 'Store'}`);
 
     const miles = totalRouteMiles(home, stores);
-    const rate  = Number(s?.mileRate ?? 0.67);
-    const amt   = Math.round(miles * rate * 100) / 100;
+const rate  = Number(s?.mileRate ?? 0.67);
+const amt   = Math.round(miles * rate * 100) / 100;
 
-    const today = todayISO();
-    const mileExp = {
-      id: 'mile_' + today,
-      name: 'Mileage',
-      category: 'Mileage',
-      amount: amt,
-      notes: `Auto from route: ${miles.toFixed(1)} mi @ ${money(rate)}/mi`,
-      date: today
-    };
-    const curEx = store.get('expenses', []);
-    const exNo = curEx.filter(e => e.id !== mileExp.id); exNo.push(mileExp);
-    store.set('expenses', exNo);
-    normalizeExpensesInPlace();
-    renderExpenses();
-  } else {
-    toast('Could not compute distances — check store lat/lng','bad');
-  }
+const today = todayISO();
+const mileExp = {
+  id: 'mile_' + today,
+  name: 'Mileage',
+  category: 'Mileage',
+  amount: amt,
+  notes: `Auto from route: ${miles.toFixed(1)} mi @ ${money(rate)}/mi`,
+  date: today
+};
+const curEx = store.get('expenses', []);
+const exNo = curEx.filter(e => e.id !== mileExp.id); exNo.push(mileExp);
+store.set('expenses', exNo);
+normalizeExpensesInPlace();
+renderExpenses();
+} else {
+  toast('Could not compute distances — check store lat/lng','bad');
+}
 }
 document.getElementById('btnOrderRoute').addEventListener('click', orderRouteWithFinalNearestHome);
 document.getElementById('routeList').addEventListener('click', (e) => {
@@ -1033,7 +1087,7 @@ document.getElementById('routeList').addEventListener('click', (e) => {
   }
 });
 
-/* ================= BULK IMPORT STORES ================= */
+/* ================= BULK IMPORT STORES (modal wiring) ================= */
 function parseCsv(text){ const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim().length); if(!lines.length) return [];
   const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'')); const split=line=>{const out=[];let cur='',q=false;
     for(let i=0;i<line.length;i++){const c=line[i]; if(c==='"' && (i===0||line[i-1]!=='\\')) q=!q; else if(c===','&&!q){out.push(cur);cur='';continue;} cur+=c;}
@@ -1107,6 +1161,177 @@ function dedupeStores(arr, existing){
     store.set('stores', merged); toast(`Imported ${arr.length} store${arr.length===1?'':'s'}`); renderRoutes(); hide();
   });
 })();
+
+/* ================= EBAY ACTIVE + SOLD (offline-friendly import) ================= */
+function getActive(){ return store.get('ebayActive', []); }
+function setActive(arr){ store.set('ebayActive', Array.isArray(arr)?arr:[]); }
+function getSold(){ return store.get('ebaySold', []); }
+function setSold(arr){ store.set('ebaySold', Array.isArray(arr)?arr:[]); }
+
+function renderEbayActive(){
+  const items = getActive();
+  $('#countActive').textContent = items.length.toString();
+  const tbody = $('#tblActive tbody');
+  const cards = $('#cardsActive');
+  const hint  = $('#activeHint');
+  if (!items.length){ if (tbody) tbody.innerHTML=''; if(cards) cards.innerHTML=''; if(hint) hint.style.display=''; return; }
+  if(hint) hint.style.display='none';
+
+  const safeTxt = s => (s==null?'':String(s));
+  if (tbody) tbody.innerHTML = items.map(it=>`
+    <tr>
+      <td>${safeTxt(it.title)}</td>
+      <td>${safeTxt(it.sku||'')}</td>
+      <td>${Number.isFinite(Number(it.price))?money(Number(it.price)):''}</td>
+      <td><span class="pill">${safeTxt(it.status||'Active')}</span></td>
+      <td>${it.url?`<a href="${it.url}" target="_blank" rel="noopener">View</a>`:''}</td>
+    </tr>`).join('');
+
+  if (cards) cards.innerHTML = items.map(it=>`
+    <div class="grid-item">
+      <div><strong>${safeTxt(it.title)}</strong></div>
+      <div class="meta">${safeTxt(it.sku||'')} • ${Number.isFinite(Number(it.price))?money(Number(it.price)):''}</div>
+      ${it.url?`<div style="margin-top:6px"><a class="btn ghost" href="${it.url}" target="_blank" rel="noopener">Open</a></div>`:''}
+    </div>`).join('');
+}
+function renderEbaySold(){
+  const rows = getSold(); // {title, sold, cogs, fees, date, source}
+  $('#countSold').textContent = rows.length.toString();
+  const tbody = $('#tblSold tbody');
+  const cards = $('#cardsSold');
+  const hint  = $('#soldHint');
+  if (!rows.length){ if (tbody) tbody.innerHTML=''; if(cards) cards.innerHTML=''; if(hint) hint.style.display=''; return; }
+  if(hint) hint.style.display='none';
+
+  if (tbody) tbody.innerHTML = rows.map(r=>{
+    const sold = Number(r.sold||r.total||r.price||0);
+    const cogs = Number(r.cogs||r.cog||0);
+    const fees = Number(r.fees||0);
+    const profit = sold - cogs - fees;
+    return `<tr>
+      <td>${r.title||''}</td>
+      <td>${money(sold)}</td>
+      <td>${cogs?money(cogs):''}</td>
+      <td>${fees?money(fees):''}</td>
+      <td>${money(profit)}</td>
+      <td>${(r.date||'').slice(0,10)}</td>
+      <td>${r.source||'Import'}</td>
+    </tr>`;
+  }).join('');
+
+  if (cards) cards.innerHTML = rows.map(r=>{
+    const sold = Number(r.sold||r.total||r.price||0);
+    const cogs = Number(r.cogs||r.cog||0);
+    const fees = Number(r.fees||0);
+    const profit = sold - cogs - fees;
+    return `<div class="grid-item">
+      <div><strong>${r.title||''}</strong></div>
+      <div class="meta">${(r.date||'').slice(0,10)} • Sold ${money(sold)}</div>
+      <div class="meta">COGS ${cogs?money(cogs):'-'} • Fees ${fees?money(fees):'-'} • Profit ${money(profit)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* Hidden file inputs for imports */
+const __fileActive = document.createElement('input');
+__fileActive.type='file'; __fileActive.accept='.json';
+const __fileSold = document.createElement('input');
+__fileSold.type='file'; __fileSold.accept='.json,.csv';
+document.body.appendChild(__fileActive);
+document.body.appendChild(__fileSold);
+
+function readTextFile(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result||'')); r.onerror=rej; r.readAsText(file); }); }
+
+async function importActiveFromFile(){
+  try{
+    const f = __fileActive.files?.[0]; if(!f){ toast('No file selected','bad'); return; }
+    const txt = await readTextFile(f);
+    const arr = JSON.parse(txt);
+    if(!Array.isArray(arr)) throw new Error('JSON should be an array');
+    const norm = arr.map(x=>({
+      title: x.title||x.name||'Listing',
+      sku: x.sku||x.SKU||'',
+      price: Number(x.price||x.ask||x.listPrice||0) || 0,
+      url: x.url||x.link||'',
+      status: x.status||'Active'
+    }));
+    setActive(norm); toast(`Imported ${norm.length} active listings`); renderEbayActive();
+  }catch(e){ console.error(e); toast('Failed to import Active JSON','bad'); }
+}
+async function importSoldFromFile(){
+  try{
+    const f = __fileSold.files?.[0]; if(!f){ toast('No file selected','bad'); return; }
+    const txt = await readTextFile(f);
+    let rows=[];
+    if (f.name.toLowerCase().endsWith('.json')) {
+      const arr = JSON.parse(txt);
+      if(!Array.isArray(arr)) throw new Error('JSON should be an array');
+      rows = arr;
+    } else {
+      const csvRows = parseCsv(txt);
+      rows = csvRows.map(row=>({
+        title: row['Item Title']||row['Title']||row['Item']||'eBay Sale',
+        sold:  Number(String(row['Total Price']||row['Item Total']||row['Sale Price']||row['Total']||'').replace(/[^0-9.\-]/g,''))||0,
+        date:  (new Date(row['Paid On Date']||row['Sale Date']||row['Date Sold']||row['Paid Date']||row['Date']||'')).toISOString(),
+        source:'CSV'
+      })).filter(x=>x.sold && x.date);
+    }
+    const normalized = rows.map(r=>({
+      title: r.title||r.item||'eBay Sale',
+      sold: Number(r.sold||r.total||r.price||0) || 0,
+      cogs: Number(r.cogs||r.cog||0) || 0,
+      fees: Number(r.fees||0) || 0,
+      date: r.date ? new Date(r.date).toISOString() : '',
+      source: r.source||'Import'
+    }));
+    setSold(normalized);
+    // Also push to dashboard sales
+    const newSales = normalized.map(s=>({title:s.title,total:s.sold,price:s.sold,date:s.date,store:'eBay',category:'Online'}));
+    store.set('sales', uniqBy(store.get('sales',[]).concat(newSales), x=>[x.title,x.date,x.total].join('|')));
+    toast(`Imported ${normalized.length} sold records`);
+    renderEbaySold(); renderSalesChart(); renderTotalSales();
+  }catch(e){ console.error(e); toast('Failed to import Sold file','bad'); }
+}
+$('#btnImportActive').addEventListener('click',()=>{ __fileActive.value=''; __fileActive.click(); });
+$('#btnImportSold').addEventListener('click',()=>{ __fileSold.value=''; __fileSold.click(); });
+__fileActive.addEventListener('change', importActiveFromFile);
+__fileSold.addEventListener('change', importSoldFromFile);
+
+/* ================= CSV IMPORT + BACKUP (dashboard sales) ================= */
+function pickNumber(o,ks){ for(const k of ks){ if(k in o && o[k]!=='' && o[k]!=null){const v=String(o[k]).replace(/[^0-9.\-]/g,''); if(v!==''&&!Number.isNaN(Number(v))) return Number(v);} } return null; }
+function pickDate(o,ks){ for(const k of ks){ if(k in o && o[k]){const d=new Date(o[k]); if(!isNaN(d)) return d.toISOString();} } return null; }
+function pickText(o,ks){ for(const k of ks){ if(k in o && o[k]) return String(o[k]); } return ''; }
+function importEbayCsv(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    const rows=parseCsv(r.result);
+    const sales=rows.map(row=>({
+      title:pickText(row,['Item Title','Title','Item title','Item']),
+      total:pickNumber(row,['Total Price','Item Total','Sold For','Total','Order total','Sale Price','Amount']),
+      date:pickDate(row,['Paid On Date','Sale Date','Date Sold','Sold On','Order date','Paid Date','Date'])
+    })).filter(x=>x.total!=null && x.date!=null);
+    const all=store.all(); all.sales=sales; store.set('sales',all.sales);
+    normalizeExpensesInPlace();
+    toast(`Imported ${sales.length} sales from CSV`); tryRenderAll(); activateView('view-home');
+  };
+  r.readAsText(file);
+}
+$('#btnImportEbay').addEventListener('click',()=>$('#ebayCsv').click());
+$('#ebayCsv').addEventListener('change',e=>{const f=e.target.files?.[0]; if(f) importEbayCsv(f);});
+$('#btnExport').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(store.all(),null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`scale-flipz-backup-${Date.now()}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$('#backupFile').addEventListener('change',e=>{
+  const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{try{const o=JSON.parse(r.result);
+    ['items','expenses','stores','sales','settings','supplies','ebayActive','ebaySold'].forEach(k=>{if(o[k]) store.set(k,o[k]);});
+    normalizeExpensesInPlace();
+    toast('Backup imported'); tryRenderAll();
+  }catch{toast('Invalid backup file','bad');}};
+  r.readAsText(f);
+});
 
 /* ================= DASHBOARD ================= */
 function groupSales(period){
@@ -1189,62 +1414,9 @@ function renderStoresPerf(){
     </li>`).join('') : '<li class="muted">No stores yet. Add some in Quick Add → Store.</li>';
 }
 
-/* ================= CSV IMPORT + BACKUP ================= */
-function pickNumber(o,ks){ for(const k of ks){ if(k in o && o[k]!=='' && o[k]!=null){const v=String(o[k]).replace(/[^0-9.\-]/g,''); if(v!==''&&!Number.isNaN(Number(v))) return Number(v);} } return null; }
-function pickDate(o,ks){ for(const k of ks){ if(k in o && o[k]){const d=new Date(o[k]); if(!isNaN(d)) return d.toISOString();} } return null; }
-function pickText(o,ks){ for(const k of ks){ if(k in o && o[k]) return String(o[k]); } return ''; }
-function importEbayCsv(file){
-  const r=new FileReader();
-  r.onload=()=>{
-    const rows=parseCsv(r.result);
-    const sales=rows.map(row=>({
-      title:pickText(row,['Item Title','Title','Item title','Item']),
-      total:pickNumber(row,['Total Price','Item Total','Sold For','Total','Order total','Sale Price','Amount']),
-      date:pickDate(row,['Paid On Date','Sale Date','Date Sold','Sold On','Order date','Paid Date','Date'])
-    })).filter(x=>x.total!=null && x.date!=null);
-    const all=store.all(); all.sales=sales; store.set('sales',all.sales);
-    normalizeExpensesInPlace();
-    toast(`Imported ${sales.length} sales from CSV`); tryRenderAll(); activateView('view-home');
-  };
-  r.readAsText(file);
-}
-$('#btnImportEbay').addEventListener('click',()=>$('#ebayCsv').click());
-$('#ebayCsv').addEventListener('change',e=>{const f=e.target.files?.[0]; if(f) importEbayCsv(f);});
-$('#btnExport').addEventListener('click',()=>{
-  const blob=new Blob([JSON.stringify(store.all(),null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`scale-flipz-backup-${Date.now()}.json`;
-  a.click(); URL.revokeObjectURL(a.href);
-});
-$('#backupFile').addEventListener('change',e=>{
-  const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();
-  r.onload=()=>{try{const o=JSON.parse(r.result);
-    ['items','expenses','stores','sales','settings','supplies'].forEach(k=>{if(o[k]) store.set(k,o[k]);});
-    normalizeExpensesInPlace();
-    toast('Backup imported'); tryRenderAll();
-  }catch{toast('Invalid backup file','bad');}};
-  r.readAsText(f);
-});
-
-/* ================= EBAY SYNC TOOLBAR (visibility) ================= */
-function injectEbayControls() {
-  if (document.getElementById('ebay-sync-toolbar')) return;
-  const bar=document.createElement('div');
-  bar.id='ebay-sync-toolbar';
-  bar.style.cssText=['position:relative','margin:12px 0','padding:8px','border:1px solid var(--line)','background:var(--card)','border-radius:12px','display:flex','gap:8px','flex-wrap:wrap','align-items:center'].join(';');
-  const title=document.createElement('strong'); title.textContent='eBay Sync'; title.style.marginRight='8px'; bar.appendChild(title);
-  const connect=document.createElement('a'); connect.href=BACKEND_URL + '/auth/start'; connect.target='_blank'; connect.rel='noopener'; connect.textContent='Connect eBay'; connect.className='btn'; bar.appendChild(connect);
-  const btnSync=document.createElement('button'); btnSync.textContent='Sync Now'; btnSync.onclick=async()=>{try{await fetch(BACKEND_URL+'/sync-now');}catch{}; tryRenderAll();}; btnSync.className='btn'; bar.appendChild(btnSync);
-  const main=document.querySelector('main')||document.body; main.insertBefore(bar, main.firstChild);
-}
-function updateToolbarVisibility() {
-  const s = getSettings(); const sales = readArrLS('tt-sales'); const exps = readArrLS('tt-expenses');
-  const hasData = (Array.isArray(sales)&&sales.length>0) || (Array.isArray(exps)&&exps.length>0)
-                  || store.get('sales',[]).length>0 || store.get('expenses',[]).length>0;
-  const shouldShow = (s.flags?.showToolbar === true) || !hasData;
-  const bar = document.getElementById('ebay-sync-toolbar');
-  if (shouldShow) { if (!bar) injectEbayControls(); else bar.style.display = ''; }
-  else { if (bar) bar.remove(); }
-}
+/* ================= eBay Sync toolbar (no-op but keeps calls safe) ================= */
+function injectEbayControls(){ /* optional toolbar not used in this build */ }
+function updateToolbarVisibility(){ /* keep references safe; nothing to show */ }
 
 /* ================= RENDER / BOOTSTRAP ================= */
 function renderEmptyHints(){
@@ -1253,20 +1425,31 @@ function renderEmptyHints(){
   const hasExpenses = store.get('expenses', []).length > 0;
   if (!hasSales && !hasExpenses) {
     hint.style.display = '';
-    hint.innerHTML = 'This device has no sales/expenses yet. <b>Import a backup</b> (Inventory → Import Backup) or <b>Connect eBay</b> (toggle toolbar in Settings).';
+    hint.innerHTML = 'This device has no sales/expenses yet. <b>Import a backup</b> (Inventory → Import Backup) or <b>Import eBay Sold</b> to populate.';
   } else {
     hint.style.display = 'none';
   }
 }
-function tryRenderAll(){ safe(renderTotalSales); safe(renderSalesChart); safe(renderExpensePie); safe(renderStoresPerf); safe(renderInventory); safe(renderRoutes); safe(renderSupplies); safe(renderExpenses); safe(renderEmptyHints); }
+function tryRenderAll(){
+  safe(renderTotalSales);
+  safe(renderSalesChart);
+  safe(renderExpensePie);
+  safe(renderStoresPerf);
+  safe(renderInventory);
+  safe(renderRoutes);
+  safe(renderSupplies);
+  safe(renderExpenses);
+  safe(renderEbayActive);
+  safe(renderEbaySold);
+  safe(renderEmptyHints);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   normalizeExpensesInPlace();
-  updateToolbarVisibility();      // <- show connect toolbar on devices with no data
+  updateToolbarVisibility();
   tryRenderAll();
 });
 window.addEventListener('load', () => { renderTotalSales(); });
-
 </script>
 
 <!-- PWA (optional) -->
@@ -1277,3 +1460,4 @@ if ('serviceWorker' in navigator) {
 </script>
 </body>
 </html>
+

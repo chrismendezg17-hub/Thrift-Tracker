@@ -101,7 +101,26 @@ if (typeof Chart === 'undefined') {
   /* Avoid giant bottom gap on desktop since tabs are fixed anyway */
   .wrap{ padding-bottom: 72px; } /* was 140px */
 }
+  
+/* Hide stray native file inputs site-wide; still clickable via labels/buttons */
+input[type="file"]{
+  position: absolute !important;
+  left: -10000px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
+/* But allow file inputs to be visible when a modal is open (Settings, etc.) */
+.modal.active input[type="file"]{
+  position: static !important;
+  left: auto !important;
+  width: auto !important;
+  height: auto !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
 
   /* Modal */
   .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0008;z-index:20}
@@ -657,7 +676,15 @@ function activateView(id){
   $('#'+id).classList.add('active');
   $$('nav.tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected','false'));
   $(`[aria-controls="${id}"]`).setAttribute('aria-selected','true');
+
+  // When Inventory is shown, render all three sections every time
+  if (id === 'view-inventory') {
+    safe(renderEbayActive);
+    safe(renderEbaySold);
+    safe(renderInventory); // legacy combined table
+  }
 }
+
 $$('nav.tabs [role="tab"]').forEach(btn=>btn.addEventListener('click',()=>activateView(btn.getAttribute('aria-controls'))));
 
 /* ================= QUICK ADD (unchanged, trimmed) ================= */
@@ -1555,13 +1582,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   normalizeExpensesInPlace();
   updateToolbarVisibility();
 
-  // 1) pull from backend if available; 2) always render local (includes tt-active/tt-sold)
-  await syncEbayFromBackend().catch(()=>{});
-  tryRenderAll();
+  // try backend/auto keys if you added syncEbayFromBackend()
+  if (typeof syncEbayFromBackend === 'function') {
+    try { await syncEbayFromBackend(); } catch {}
+  }
 
-  // periodic refresh (30 min). Adjust if you want.
-  setInterval(syncEbayFromBackend, 30 * 60 * 1000);
+  tryRenderAll();            // general render
+  // make sure inventory sections have content/hints ready even if the tab isn't active yet
+  safe(renderEbayActive);
+  safe(renderEbaySold);
 });
+
 window.addEventListener('load', () => { renderTotalSales(); });
 </script>
 
